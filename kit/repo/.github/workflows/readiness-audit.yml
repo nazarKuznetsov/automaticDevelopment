@@ -1,0 +1,76 @@
+name: Agent readiness audit
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - labeled
+      - unlabeled
+      - reopened
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  audit:
+    if: contains(github.event.issue.labels.*.name, 'agent-ready')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit agent-ready issue body
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || "";
+            const required = [
+              "Goal",
+              "Acceptance Criteria",
+              "Dependency / Blocker State",
+              "Validation Expectations",
+              "Security Impact",
+              "UI / Design Impact",
+              "QA Requirement",
+              "Primary Signal",
+              "Secondary Signals",
+              "Model / Risk expectation",
+              "TDD / Exemption",
+              "Graphify or fallback repository tracing"
+            ];
+
+            const missing = required.filter((name) => !body.includes(name));
+            const hasBlockedLabel = issue.labels.some((label) => label.name === "blocked");
+
+            if (missing.length === 0 && !hasBlockedLabel) {
+              return;
+            }
+
+            const reasonLines = [];
+            if (missing.length > 0) {
+              reasonLines.push(`Missing readiness sections: ${missing.join(", ")}`);
+            }
+            if (hasBlockedLabel) {
+              reasonLines.push("Issue has the blocked label.");
+            }
+
+            const comment = [
+              "## Human action required",
+              "",
+              "Blocked action: agent-ready readiness gate",
+              `Reason: ${reasonLines.join(" ")}`,
+              `Issue: #${issue.number}`,
+              "Required human decision: complete readiness fields or remove `agent-ready`.",
+              `Exact command or URL: ${issue.html_url}`,
+              "Exact labels / Project fields / issue body: remove `agent-ready` until Project Status is Ready and no blockers remain.",
+              "Safe to continue after: readiness sections are complete, blockers are resolved, and GitHub Project Status is Ready."
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment
+            });
+
+            core.setFailed("Issue is labeled agent-ready but failed readiness audit.");

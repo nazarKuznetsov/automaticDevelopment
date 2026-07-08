@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Agent Worker"
+  short_description: "Deliver one GitHub Issue through one branch and PR."
+  default_prompt: "Use this skill to deliver one ready GitHub Issue."

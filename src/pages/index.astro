@@ -1,0 +1,255 @@
+---
+import "../styles/global.css";
+
+const navItems = [
+  ["Overview", "#overview"],
+  ["Installation", "#installation"],
+  ["Workflow", "#workflow"],
+  ["Required Setup", "#required-setup"],
+  ["Resources", "#resources"],
+  ["Deployment", "#deployment"],
+  ["Roadmap", "#roadmap"],
+];
+
+const repoUrl = "https://github.com/nazarKuznetsov/automaticDevelopment";
+const pagesUrl = "https://nazarkuznetsov.github.io/automaticDevelopment/";
+const cloneUrl = "https://github.com/nazarKuznetsov/automaticDevelopment.git";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Codex Automation Guide is a premium static documentation portal and installable kit for GitHub-native Codex agent workflows."
+    />
+    <meta name="theme-color" content="#131313" />
+    <title>Codex Automation Guide</title>
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="sidebar" aria-label="Documentation navigation">
+        <a class="brand-lockup" href="#top" aria-label="Codex Automation Guide home">
+          <span class="brand-mark"></span>
+          <span>
+            <strong>Codex Automation</strong>
+            <small>GitHub-native OS</small>
+          </span>
+        </a>
+        <nav>
+          {navItems.map(([label, href]) => <a href={href}>{label}</a>)}
+        </nav>
+        <div class="sidebar-status" aria-label="Static site status">
+          <span>Static runtime</span>
+          <strong>GitHub Pages ready</strong>
+        </div>
+      </aside>
+
+      <header class="mobile-topbar">
+        <a class="brand-lockup" href="#top">
+          <span class="brand-mark"></span>
+          <span>Codex Automation</span>
+        </a>
+        <nav aria-label="Mobile navigation">
+          <a href="#installation">Install</a>
+          <a href="#resources">Resources</a>
+        </nav>
+      </header>
+
+      <main id="top">
+        <section class="hero section-band">
+          <div class="hero-copy">
+            <p class="eyebrow">Codex Automation Guide</p>
+            <h1>Bootstrap GitHub-native agent workflows with a production-grade operating kit.</h1>
+            <p class="hero-lede">
+              A static developer portal for setting up Codex automation, project intake, GitHub
+              Project queues, Orchestrator handoff, Worker packets, and PR evidence loops.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#installation">Start Setup</a>
+              <a class="button secondary" href="#resources">View Resources</a>
+            </div>
+            <dl class="signal-strip" aria-label="Workflow signals">
+              <div>
+                <dt>Runtime</dt>
+                <dd>Codex App</dd>
+              </div>
+              <div>
+                <dt>State</dt>
+                <dd>GitHub Project v2</dd>
+              </div>
+              <div>
+                <dt>Delivery</dt>
+                <dd>Issue → PR</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="tech-core-panel" aria-label="Tech Core WebGL accent">
+            <div class="tech-core-heading">
+              <span>Tech Core</span>
+              <strong>Orchestrator signal</strong>
+            </div>
+            <canvas data-tech-core id="tech-core-canvas" width="720" height="720"></canvas>
+            <div class="tech-core-fallback" aria-hidden="true">
+              <span></span>
+            </div>
+          </div>
+        </section>
+
+        <section id="overview" class="section-band docs-section">
+          <div class="section-heading">
+            <p class="eyebrow">Overview</p>
+            <h2>Everything needed to turn a normal repo into an agent-ready queue.</h2>
+            <p>
+              Codex Automation Guide packages the operating docs, GitHub templates, readiness
+              checks, and Codex skills needed to run mostly autonomous development with conservative
+              human gates.
+            </p>
+          </div>
+          <div class="panel-grid three">
+            <article class="glass-panel">
+              <span class="panel-kicker">Bootstrap</span>
+              <h3>Project Intake Packet</h3>
+              <p>Capture goals, constraints, validation commands, repository metadata, and human gates once at the start.</p>
+            </article>
+            <article class="glass-panel">
+              <span class="panel-kicker">Queue</span>
+              <h3>GitHub Setup Packet</h3>
+              <p>Create labels, Project v2 fields, issue forms, PR evidence templates, and readiness audit guardrails.</p>
+            </article>
+            <article class="glass-panel">
+              <span class="panel-kicker">Execution</span>
+              <h3>Orchestrator + Workers</h3>
+              <p>Run bounded Worker launches from GitHub state, with issue comments as the durable state ledger.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="installation" class="section-band docs-section">
+          <div class="section-heading">
+            <p class="eyebrow">Installation</p>
+            <h2>Clone the guide, copy the kit, then let Codex run the setup audit.</h2>
+          </div>
+          <div class="code-layout">
+            <div class="code-card">
+              <div class="code-title">Local setup</div>
+              <pre><code>git clone {cloneUrl}
+cd automaticDevelopment
+npm install
+npm run dev</code></pre>
+            </div>
+            <div class="code-card">
+              <div class="code-title">Install kit into a target repo</div>
+              <pre><code>cp -R kit/repo/. /path/to/target-repo/
+
+# optional guarded installer
+scripts/install-kit.sh --target /path/to/target-repo --dry-run
+scripts/install-kit.sh --target /path/to/target-repo</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="workflow" class="section-band docs-section">
+          <div class="section-heading">
+            <p class="eyebrow">Workflow</p>
+            <h2>Brainstorm, Planner, Orchestrator, Worker, PR.</h2>
+          </div>
+          <ol class="workflow-list">
+            <li><span>01</span><div><h3>Brainstorm</h3><p>Define the project goal, audience, constraints, and acceptance criteria.</p></div></li>
+            <li><span>02</span><div><h3>Planner</h3><p>Audit the repository and produce Project Intake plus GitHub Setup packets.</p></div></li>
+            <li><span>03</span><div><h3>Orchestrator</h3><p>Read the GitHub Project queue, write state ledger comments, claim ready issues, and create Worker packets.</p></div></li>
+            <li><span>04</span><div><h3>Worker</h3><p>Deliver one issue through one worktree, one branch, one PR, and validation evidence.</p></div></li>
+            <li><span>05</span><div><h3>Handoff</h3><p>After five Worker launches, the Orchestrator emits handoff YAML and a replacement audits state before continuing.</p></div></li>
+          </ol>
+        </section>
+
+        <section id="required-setup" class="section-band docs-section">
+          <div class="section-heading">
+            <p class="eyebrow">Required Setup</p>
+            <h2>GitHub is the system of record.</h2>
+          </div>
+          <div class="panel-grid two">
+            <article class="glass-panel strong">
+              <h3>GitHub Project v2 fields</h3>
+              <ul>
+                <li>Status: Intake, Ready, In Progress, Review, Blocked, Done</li>
+                <li>Work Type: Guide, Template, Automation, Site, Docs, Feature, Bug, Refactor</li>
+                <li>Risk: Low, Medium, High</li>
+                <li>QA Required: Yes, No</li>
+              </ul>
+            </article>
+            <article class="glass-panel">
+              <h3>Access checks</h3>
+              <pre><code>gh auth status
+gh repo view
+gh project list --owner nazarKuznetsov</code></pre>
+            </article>
+          </div>
+        </section>
+
+        <section id="resources" class="section-band docs-section">
+          <div class="section-heading">
+            <p class="eyebrow">Resources</p>
+            <h2>Copyable files, trusted links, and the workflow source.</h2>
+          </div>
+          <div class="resource-grid">
+            <a class="resource-card" href={repoUrl}>
+              <span>Repository</span>
+              <strong>nazarKuznetsov/automaticDevelopment</strong>
+            </a>
+            <a class="resource-card" href={`${repoUrl}/tree/main/kit/repo`}>
+              <span>Installable kit</span>
+              <strong>kit/repo/</strong>
+            </a>
+            <a class="resource-card" href={`${repoUrl}/blob/main/INSTALL.md`}>
+              <span>Installer docs</span>
+              <strong>INSTALL.md</strong>
+            </a>
+            <a class="resource-card" href="https://cli.github.com/">
+              <span>GitHub CLI</span>
+              <strong>gh auth status</strong>
+            </a>
+          </div>
+        </section>
+
+        <section id="deployment" class="section-band docs-section">
+          <div class="section-heading">
+            <p class="eyebrow">Deployment</p>
+            <h2>Static GitHub Pages deployment through Actions.</h2>
+            <p>
+              The site builds to `dist/` and deploys through GitHub Pages. Enable Pages with Source
+              set to GitHub Actions after the initial commit lands.
+            </p>
+          </div>
+          <div class="code-card wide">
+            <div class="code-title">Production build</div>
+            <pre><code>npm run check
+npm run build
+npm run preview</code></pre>
+          </div>
+        </section>
+
+        <section id="roadmap" class="section-band docs-section final-section">
+          <div class="section-heading">
+            <p class="eyebrow">Roadmap</p>
+            <h2>Keep the core static. Expand automation only where it protects the workflow.</h2>
+          </div>
+          <div class="panel-grid three">
+            <article class="glass-panel"><h3>v1</h3><p>Static docs portal, installable kit, readiness audit, Orchestrator and Worker skills.</p></article>
+            <article class="glass-panel"><h3>v1.1</h3><p>Optional release archives, richer setup packet examples, and visual workflow diagrams.</p></article>
+            <article class="glass-panel"><h3>v2</h3><p>Optional controller/service exploration after the GitHub-native manual loop is proven.</p></article>
+          </div>
+          <a class="button primary" href={pagesUrl}>Open GitHub Pages</a>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      import "../scripts/tech-core.ts";
+    </script>
+  </body>
+</html>
+

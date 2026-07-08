@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Agent Orchestrator"
+  short_description: "Run the GitHub-native Codex Orchestrator loop."
+  default_prompt: "Use this skill to run the GitHub-native Orchestrator heartbeat."
