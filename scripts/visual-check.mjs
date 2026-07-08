@@ -26,12 +26,26 @@ async function canvasHasPixels(page) {
 const browser = await chromium.launch();
 
 try {
-  const desktop = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+  const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+  await desktopContext.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(url).origin });
+  const desktop = await desktopContext.newPage();
   await desktop.goto(url, { waitUntil: "networkidle" });
   await desktop.screenshot({ path: "test-results/desktop.png", fullPage: true });
   const title = await desktop.locator("h1").textContent();
   if (!title?.includes("GitHub-native agent workflows")) {
     throw new Error("Desktop hero heading did not render expected text.");
+  }
+  const codeBlockCount = await desktop.locator("pre > code").count();
+  const copyButtonCount = await desktop.locator(".copy-code-button").count();
+  if (codeBlockCount < 1 || copyButtonCount !== codeBlockCount) {
+    throw new Error(`Copy buttons missing. Found ${copyButtonCount} buttons for ${codeBlockCount} code blocks.`);
+  }
+  const promptText = await desktop.locator(".prompt-card pre > code").textContent();
+  await desktop.locator(".prompt-card .copy-code-button").click();
+  await desktop.waitForFunction(() => document.querySelector(".prompt-card .copy-code-button")?.textContent === "Copied");
+  const clipboardText = await desktop.evaluate(() => navigator.clipboard.readText());
+  if (clipboardText !== promptText) {
+    throw new Error("Starter prompt copy button did not write the expected clipboard text.");
   }
   await desktop.waitForTimeout(900);
   if (!(await canvasHasPixels(desktop))) {
