@@ -4,6 +4,7 @@ import "../styles/global.css";
 const navItems = [
   ["Overview", "#overview"],
   ["Installation", "#installation"],
+  ["Agent Setup", "#agent-setup"],
   ["Workflow", "#workflow"],
   ["Required Setup", "#required-setup"],
   ["Resources", "#resources"],
@@ -152,6 +153,106 @@ scripts/install-kit.sh --target /path/to/target-repo</code></pre>
           </div>
         </section>
 
+        <section id="agent-setup" class="section-band docs-section">
+          <div class="section-heading">
+            <p class="eyebrow">Agent Setup</p>
+            <h2>Open a new Codex chat, paste one prompt, and start planning with the guide.</h2>
+            <p>
+              This is the first-run path for a teammate who receives the GitHub Pages link and
+              wants to bootstrap the workflow in their own repository without learning every file
+              in the kit up front.
+            </p>
+          </div>
+
+          <div class="agent-setup-layout">
+            <div class="setup-steps">
+              <article class="glass-panel strong">
+                <span class="panel-kicker">Recommended</span>
+                <h3>Plan Mode first</h3>
+                <p>
+                  Open the target repository in Codex App, enable Plan Mode, select the strongest
+                  available model, and paste the starter prompt before any code changes happen.
+                </p>
+              </article>
+              <article class="glass-panel">
+                <span class="panel-kicker">Installed Kit</span>
+                <h3>Use local repo rules</h3>
+                <p>
+                  Copy <code>kit/repo/</code> into the target repo first. The agent should then use
+                  local <code>AGENTS.md</code>, docs, templates, and skills as the primary protocol.
+                </p>
+              </article>
+              <article class="glass-panel">
+                <span class="panel-kicker">Guide Only</span>
+                <h3>Reference the public guide</h3>
+                <p>
+                  If the kit is not installed yet, give the agent this site and repository link so
+                  it can read the workflow documents before producing the first planning packet.
+                </p>
+              </article>
+            </div>
+
+            <div class="code-card prompt-card">
+              <div class="code-title">Starter prompt for a new Codex chat</div>
+              <pre><code>Мы работаем по Codex Automation Guide:
+https://nazarkuznetsov.github.io/automaticDevelopment/
+https://github.com/nazarKuznetsov/automaticDevelopment
+
+Режим: Plan Mode. Код пока не меняй.
+
+Target repo: &lt;вставь ссылку на мой репозиторий&gt;
+Project idea: &lt;кратко опиши идею&gt;
+Autonomy mode: mostly autonomous with conservative human gates.
+
+Сначала прочитай README.md, INSTALL.md и kit/repo/docs/github-agent-workflow.md из guide repo.
+Если kit уже установлен в target repo, используй локальные AGENTS.md, docs и .agents/skills как основной источник правил.
+
+Дальше помоги мне brainstormить идею и подготовь:
+1. Project Intake Packet YAML
+2. GitHub Setup Packet
+3. список первых setup issues
+4. human gates
+5. validation commands
+6. prompt для запуска Orchestrator после подтверждения плана
+
+Не запускай Worker, не меняй код и не создавай PR, пока я явно не подтвержу план.</code></pre>
+            </div>
+          </div>
+
+          <div class="setup-footer">
+            <article class="glass-panel checklist-panel">
+              <span class="panel-kicker">Before Paste</span>
+              <h3>First-run checklist</h3>
+              <ul>
+                <li>Codex App is opened in the target repository.</li>
+                <li>Plan Mode is enabled before the prompt is sent.</li>
+                <li>The strongest available model is selected for planning.</li>
+                <li>The GitHub repository URL is ready to paste.</li>
+                <li>The user can describe the project idea and autonomy level.</li>
+              </ul>
+            </article>
+
+            <div class="resource-grid compact">
+              <a class="resource-card" href={pagesUrl}>
+                <span>Guide</span>
+                <strong>GitHub Pages</strong>
+              </a>
+              <a class="resource-card" href={repoUrl}>
+                <span>Source</span>
+                <strong>GitHub repo</strong>
+              </a>
+              <a class="resource-card" href={`${repoUrl}/tree/main/kit/repo`}>
+                <span>Kit</span>
+                <strong>kit/repo/</strong>
+              </a>
+              <a class="resource-card" href={`${repoUrl}/blob/main/INSTALL.md`}>
+                <span>Install</span>
+                <strong>INSTALL.md</strong>
+              </a>
+            </div>
+          </div>
+        </section>
+
         <section id="workflow" class="section-band docs-section">
           <div class="section-heading">
             <p class="eyebrow">Workflow</p>
@@ -252,4 +353,3 @@ npm run preview</code></pre>
     </script>
   </body>
 </html>
-

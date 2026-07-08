@@ -359,7 +359,8 @@ h3 {
 
 .panel-grid,
 .resource-grid,
-.code-layout {
+.code-layout,
+.setup-steps {
   display: grid;
   gap: 14px;
 }
@@ -404,6 +405,11 @@ h3 {
   line-height: 1.58;
 }
 
+.glass-panel code {
+  color: #dcedff;
+  font: 0.88em "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
 .glass-panel ul {
   display: grid;
   gap: 10px;
@@ -436,6 +442,45 @@ pre {
   color: #dcedff;
   font: 0.92rem/1.7 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   background: #090b10;
+}
+
+.agent-setup-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.setup-steps {
+  grid-template-columns: 1fr;
+}
+
+.setup-steps .glass-panel {
+  min-height: 0;
+}
+
+.prompt-card pre {
+  max-height: 620px;
+}
+
+.setup-footer {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  margin-top: 14px;
+}
+
+.checklist-panel {
+  min-height: 0;
+}
+
+.resource-grid.compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.resource-grid.compact .resource-card {
+  min-height: 132px;
 }
 
 .workflow-list {
@@ -536,7 +581,9 @@ pre {
 @media (width <= 920px) {
   .hero,
   .panel-grid.two,
-  .code-layout {
+  .code-layout,
+  .agent-setup-layout,
+  .setup-footer {
     grid-template-columns: 1fr;
   }
 
@@ -553,6 +600,10 @@ pre {
   .resource-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .resource-grid.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (width <= 640px) {
@@ -567,7 +618,8 @@ pre {
   .hero-actions,
   .signal-strip,
   .panel-grid.three,
-  .resource-grid {
+  .resource-grid,
+  .resource-grid.compact {
     grid-template-columns: 1fr;
   }
 
@@ -590,6 +642,15 @@ pre {
 
   .workflow-list li {
     grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  pre {
+    padding: 16px;
+    font-size: 0.82rem;
+  }
+
+  .prompt-card pre {
+    max-height: 520px;
   }
 }
 
