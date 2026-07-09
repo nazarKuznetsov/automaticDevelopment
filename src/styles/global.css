@@ -509,8 +509,13 @@ pre.copy-enabled {
   min-height: 0;
 }
 
+.prompt-stack {
+  display: grid;
+  gap: 14px;
+}
+
 .prompt-card pre {
-  max-height: 620px;
+  max-height: 560px;
 }
 
 .setup-footer {

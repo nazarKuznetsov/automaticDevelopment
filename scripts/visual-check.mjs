@@ -23,6 +23,19 @@ async function canvasHasPixels(page) {
   });
 }
 
+async function verifyCopyButton(page, cardSelector) {
+  const promptText = await page.locator(`${cardSelector} pre > code`).textContent();
+  await page.locator(`${cardSelector} .copy-code-button`).click();
+  await page.waitForFunction(
+    (selector) => document.querySelector(`${selector} .copy-code-button`)?.textContent === "Copied",
+    cardSelector,
+  );
+  const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+  if (clipboardText !== promptText) {
+    throw new Error(`${cardSelector} copy button did not write the expected clipboard text.`);
+  }
+}
+
 const browser = await chromium.launch();
 
 try {
@@ -40,13 +53,11 @@ try {
   if (codeBlockCount < 1 || copyButtonCount !== codeBlockCount) {
     throw new Error(`Copy buttons missing. Found ${copyButtonCount} buttons for ${codeBlockCount} code blocks.`);
   }
-  const promptText = await desktop.locator(".prompt-card pre > code").textContent();
-  await desktop.locator(".prompt-card .copy-code-button").click();
-  await desktop.waitForFunction(() => document.querySelector(".prompt-card .copy-code-button")?.textContent === "Copied");
-  const clipboardText = await desktop.evaluate(() => navigator.clipboard.readText());
-  if (clipboardText !== promptText) {
-    throw new Error("Starter prompt copy button did not write the expected clipboard text.");
+  if ((await desktop.locator(".start-prompt-card").count()) !== 1 || (await desktop.locator(".continue-prompt-card").count()) !== 1) {
+    throw new Error("Expected start and continuation prompt cards to render exactly once.");
   }
+  await verifyCopyButton(desktop, ".start-prompt-card");
+  await verifyCopyButton(desktop, ".continue-prompt-card");
   await desktop.waitForTimeout(900);
   if (!(await canvasHasPixels(desktop))) {
     throw new Error("Tech Core canvas appears blank on desktop.");
@@ -58,6 +69,14 @@ try {
   const mobileCta = await mobile.locator("text=Start Setup").count();
   if (mobileCta < 1) {
     throw new Error("Mobile Start Setup CTA missing.");
+  }
+  const mobileContinuationPrompt = await mobile.locator("text=Continue existing project prompt").count();
+  if (mobileContinuationPrompt !== 1) {
+    throw new Error("Mobile continuation prompt missing.");
+  }
+  const noMobileOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  if (!noMobileOverflow) {
+    throw new Error("Mobile page has horizontal overflow.");
   }
 
   const reduced = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });

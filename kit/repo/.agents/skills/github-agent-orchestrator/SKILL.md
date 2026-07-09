@@ -19,6 +19,8 @@ Before acting, read `AGENTS.md` and `docs/github-agent-workflow.md`.
 - State Ledger Comment must be written before Worker launch.
 - GitHub Project v2 is required.
 - State ledger lives in issue comments, not a tracked repo state file.
+- Orchestrator executes Ready work; it does not invent new backlog when the queue is idle.
+- If the latest ledger is `DRAINING` or Handoff YAML exists, perform replacement takeover before any Worker launch.
 - Stop for conservative human gates: merge, deploy, secrets, billing, destructive ops, production data, migrations, auth/permissions/public API risk, and production dependencies.
 
 ## Preflight
@@ -38,6 +40,17 @@ Before acting, read `AGENTS.md` and `docs/github-agent-workflow.md`.
    - `Status`, `Work Type`, `Risk`, `QA Required`.
 
 If any mutation cannot be done through available tools, emit `Human action required` with exact `gh` commands or UI paths.
+
+## State Decision
+
+Before launching work, classify the repository state from GitHub:
+
+- `bootstrap_needed`: required kit files, labels, Project v2 fields, templates, or readiness workflow are missing. Use Bootstrap Flow.
+- `active_orchestration`: Ready or In Progress issues exist, or the latest ACTIVE ledger has active claims. Use Heartbeat Loop.
+- `handoff_takeover_required`: latest ledger says `DRAINING`, or Handoff YAML exists. Audit state, write `handoff accepted`, then continue Heartbeat Loop.
+- `idle_after_completed_wave`: no Ready or In Progress issues remain, recent issues are Done, and recent PRs are merged. Do not launch Workers. Emit an idle ledger and ask for a Continuation Planner or human-created Ready issues.
+
+If Ready issues exist, run Orchestrator. If Ready issues do not exist and the product needs more work, the next role is Continuation Planner, not Orchestrator.
 
 ## Bootstrap Flow
 
@@ -66,6 +79,7 @@ On each heartbeat:
 9. Generate a task-scoped Worker Packet.
 10. Create a Worker thread/worktree when Codex thread tools are available; otherwise emit a copyable Worker prompt.
 11. Stop launching after the fifth Worker launch and emit Handoff YAML.
+12. If no Ready or In Progress issues exist, stop. Write an idle State Ledger Comment with next action: `Run Continuation Planner` or `Create new Ready issues`.
 
 ## Ready Gate
 
@@ -119,6 +133,16 @@ Do not move an issue to Review unless the PR or issue contains:
 
 If evidence is missing, comment with missing items and leave the issue In Progress or Blocked.
 
+## Idle Queue
+
+When the Ready Queue is empty and no workers are active:
+
+1. Re-read recent closed issues, merged PRs, and the latest State Ledger Comment.
+2. Confirm there is no DRAINING handoff waiting for takeover.
+3. Write a State Ledger Comment with `Status: ACTIVE` or `Status: RETIRED`, `Active workers: 0/2`, and `Claimed issues: none active`.
+4. Set `Next action` to `Run Continuation Planner` unless the human has already supplied new Ready issues.
+5. Do not create issues, branches, PRs, or Worker packets from memory.
+
 ## Handoff
 
 After five Worker launches:
@@ -145,4 +169,3 @@ Exact command or URL:
 Exact labels / Project fields / issue body:
 Safe to continue after:
 ```
-

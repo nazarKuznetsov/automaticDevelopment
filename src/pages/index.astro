@@ -158,9 +158,9 @@ scripts/install-kit.sh --target /path/to/target-repo</code></pre>
             <p class="eyebrow">Agent Setup</p>
             <h2>Open a new Codex chat, paste one prompt, and start planning with the guide.</h2>
             <p>
-              This is the first-run path for a teammate who receives the GitHub Pages link and
-              wants to bootstrap the workflow in their own repository without learning every file
-              in the kit up front.
+              Use the first prompt for a new repository setup. Use the continuation prompt when a
+              project already has completed issues, merged PRs, and an idle queue that needs the
+              next wave of work.
             </p>
           </div>
 
@@ -190,11 +190,21 @@ scripts/install-kit.sh --target /path/to/target-repo</code></pre>
                   it can read the workflow documents before producing the first planning packet.
                 </p>
               </article>
+              <article class="glass-panel">
+                <span class="panel-kicker">Continuation</span>
+                <h3>Resume from GitHub state</h3>
+                <p>
+                  When all current issues are done and the queue is idle, start a Continuation
+                  Planner. It audits closed issues, merged PRs, ledgers, and current code before
+                  proposing the next wave.
+                </p>
+              </article>
             </div>
 
-            <div class="code-card prompt-card">
-              <div class="code-title">Starter prompt for a new Codex chat</div>
-              <pre><code>Мы работаем по Codex Automation Guide:
+            <div class="prompt-stack">
+              <div class="code-card prompt-card start-prompt-card">
+                <div class="code-title">Start from scratch prompt</div>
+                <pre><code>Мы работаем по Codex Automation Guide:
 https://nazarkuznetsov.github.io/automaticDevelopment/
 https://github.com/nazarKuznetsov/automaticDevelopment
 
@@ -216,6 +226,45 @@ Autonomy mode: mostly autonomous with conservative human gates.
 6. prompt для запуска Orchestrator после подтверждения плана
 
 Не запускай Worker, не меняй код и не создавай PR, пока я явно не подтвержу план.</code></pre>
+              </div>
+
+              <div class="code-card prompt-card continue-prompt-card">
+                <div class="code-title">Continue existing project prompt</div>
+                <pre><code>Мы продолжаем существующий проект по Codex Automation Guide.
+
+Guide:
+https://nazarkuznetsov.github.io/automaticDevelopment/
+https://github.com/nazarKuznetsov/automaticDevelopment
+
+Режим: Plan Mode. Код пока не меняй.
+
+Target repo: &lt;owner/repo&gt;
+Goal: продолжить развитие проекта, не начинать bootstrap заново.
+
+Сначала выполни continuation audit:
+1. Прочитай README, AGENTS.md, docs/github-agent-workflow.md и repo-local kit files.
+2. Прочитай все open и recently closed issues.
+3. Прочитай merged/open PRs, связанные с последними issues.
+4. Найди последний State Ledger Comment, Worker Completion Reports и Handoff YAML, если есть.
+5. Определи состояние проекта:
+   - bootstrap_needed
+   - active_orchestration
+   - idle_after_completed_wave
+   - handoff_takeover_required
+6. Скажи, что уже сделано и что нельзя дублировать.
+
+Если Ready issues уже есть:
+- подготовь Orchestrator Start Packet для продолжения работы.
+
+Если Ready issues нет, но проект нужно развивать дальше:
+- создай Continuation Planner Packet;
+- предложи следующую волну из максимум 5 issues;
+- для каждой issue укажи goal, acceptance criteria, dependencies, validation, risk, QA, security/design impact, out of scope;
+- укажи labels и Project fields;
+- подготовь prompt для Orchestrator, который будет запускаться после моего подтверждения.
+
+Не создавай issues, PR, branches и не меняй код, пока я явно не подтвержу continuation plan.</code></pre>
+              </div>
             </div>
           </div>
 
@@ -256,14 +305,15 @@ Autonomy mode: mostly autonomous with conservative human gates.
         <section id="workflow" class="section-band docs-section">
           <div class="section-heading">
             <p class="eyebrow">Workflow</p>
-            <h2>Brainstorm, Planner, Orchestrator, Worker, PR.</h2>
+            <h2>Brainstorm, Planner, Continuation, Orchestrator, Worker, PR.</h2>
           </div>
           <ol class="workflow-list">
             <li><span>01</span><div><h3>Brainstorm</h3><p>Define the project goal, audience, constraints, and acceptance criteria.</p></div></li>
             <li><span>02</span><div><h3>Planner</h3><p>Audit the repository and produce Project Intake plus GitHub Setup packets.</p></div></li>
-            <li><span>03</span><div><h3>Orchestrator</h3><p>Read the GitHub Project queue, write state ledger comments, claim ready issues, and create Worker packets.</p></div></li>
-            <li><span>04</span><div><h3>Worker</h3><p>Deliver one issue through one worktree, one branch, one PR, and validation evidence.</p></div></li>
-            <li><span>05</span><div><h3>Handoff</h3><p>After five Worker launches, the Orchestrator emits handoff YAML and a replacement audits state before continuing.</p></div></li>
+            <li><span>03</span><div><h3>Continuation Planner</h3><p>When the queue is idle after a completed wave, audit GitHub state and create the next issue wave.</p></div></li>
+            <li><span>04</span><div><h3>Orchestrator</h3><p>Read the GitHub Project queue, write state ledger comments, claim ready issues, and create Worker packets.</p></div></li>
+            <li><span>05</span><div><h3>Worker</h3><p>Deliver one issue through one worktree, one branch, one PR, and validation evidence.</p></div></li>
+            <li><span>06</span><div><h3>Handoff</h3><p>After five Worker launches, the Orchestrator emits handoff YAML and a replacement audits state before continuing.</p></div></li>
           </ol>
         </section>
 

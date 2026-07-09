@@ -8,6 +8,7 @@ The workflow has three long-lived roles and one short-lived delivery role:
 
 - Brainstorm: captures project intent and constraints.
 - Planner: audits the repository and writes the Project Intake Packet and GitHub Setup Packet.
+- Continuation Planner: audits an already-started repository and expands the backlog without repeating completed bootstrap or delivery work.
 - Orchestrator: executes the queue, creates Worker packets, verifies evidence, and manages handoff.
 - Worker: delivers one GitHub Issue through one branch and one pull request.
 
@@ -68,6 +69,35 @@ Notification surface: Codex thread + GitHub issue comment
 ```
 
 The Orchestrator enters `DRAINING` after its fifth Worker launch. It becomes `RETIRED` only after a replacement Orchestrator completes takeover audit and writes `handoff accepted`.
+
+## Idle Queue Decision Tree
+
+Every new Planner or Orchestrator chat must classify the repository state before creating issues or launching Workers.
+
+```text
+Bootstrap needed:
+  Kit files, labels, GitHub Project v2, templates, or readiness workflow are missing.
+  Start with Planner -> Project Intake Packet -> GitHub Setup Packet.
+
+Active orchestration:
+  Ready or In Progress issues exist, or an ACTIVE State Ledger has active claims.
+  Start or resume Orchestrator. Do not create a new backlog first.
+
+Handoff takeover required:
+  Latest ledger says DRAINING, or Handoff YAML exists.
+  Start a replacement Orchestrator. It must audit GitHub state and write handoff accepted.
+
+Idle after completed wave:
+  No Ready or In Progress issues remain, recent issues are Done, and recent PRs are merged.
+  Start a Continuation Planner. Do not rerun bootstrap or launch Workers from memory.
+```
+
+Rules:
+
+- If open Ready issues exist, run the Orchestrator.
+- If no Ready issues exist and the project still needs product work, run the Continuation Planner.
+- If Handoff YAML or a DRAINING ledger exists, run replacement Orchestrator takeover, not Planner.
+- The Orchestrator must not invent new backlog items when the Ready Queue is empty.
 
 ## Human Gates
 
@@ -181,6 +211,74 @@ github_setup_packet:
     - .agents/skills/github-agent-worker/SKILL.md
   fallback_commands: true
 ```
+
+### Continuation Intake Packet
+
+The Continuation Planner creates this after a completed wave or idle queue audit. It is not a fresh bootstrap packet.
+
+```yaml
+continuation_intake_packet:
+  repository: owner/repo
+  current_state: idle_after_completed_wave
+  completed_work:
+    issues:
+      - number:
+        title:
+        linked_pr:
+        evidence_summary:
+    merged_prs:
+      - number:
+        title:
+        merge_sha:
+  latest_ledger:
+    issue_number:
+    status:
+    worker_launches:
+    active_workers:
+    next_action:
+  do_not_repeat:
+    - bootstrap kit installation
+    - GitHub Project v2 setup
+    - already merged delivery PRs
+  next_milestone:
+    goal:
+    out_of_scope:
+    acceptance:
+      - ""
+  next_wave:
+    max_issues: 5
+    issue_contracts:
+      - title:
+        goal:
+        acceptance_criteria:
+          - ""
+        dependencies:
+          - ""
+        validation:
+          primary_signal:
+          secondary_commands:
+            - ""
+        risk: Low | Medium | High
+        qa_required: Yes | No
+        security_impact:
+        design_impact:
+        out_of_scope:
+          - ""
+        labels:
+          - agent-ready
+        project_fields:
+          Status: Ready
+          Work Type:
+          Risk:
+          QA Required:
+  orchestrator_start_packet:
+    ready_filter: "Project Status = Ready + label:agent-ready + no open blockers"
+    launch_limit: 5
+    notes:
+      - "Re-read GitHub state before claiming work."
+```
+
+The next wave should contain 3-7 issues, with 5 as the default. Each issue must state what completed work it depends on and what must not be duplicated.
 
 ### Agent Task Issue
 
@@ -322,6 +420,22 @@ orchestrator_handoff:
 
 The replacement Orchestrator must verify active workers, claimed issues, branches, PRs, blockers, and Project state from GitHub before launching any new Worker.
 
+## Continuation Planner / Backlog Expansion
+
+Use this flow only when the queue is idle after a completed wave and the product still needs more work.
+
+1. Read `README.md`, `AGENTS.md`, this guide, repo-local kit files, package scripts, CI, and current docs.
+2. Read all open issues and recently closed issues from the last wave.
+3. Read open and recently merged PRs linked to those issues.
+4. Find the latest State Ledger Comment, Worker Completion Reports, and Handoff YAML if present.
+5. Classify state as `bootstrap_needed`, `active_orchestration`, `idle_after_completed_wave`, or `handoff_takeover_required`.
+6. Summarize completed work and explicitly list what must not be repeated.
+7. If Ready issues already exist, produce an Orchestrator Start Packet instead of creating backlog.
+8. If the queue is idle and more product work is needed, produce a Continuation Intake Packet and propose the next wave.
+9. Wait for human approval before creating issues, labels, Project field updates, branches, PRs, or Worker launches.
+
+The Continuation Planner should not create a new setup issue for work that is already Done, should not reopen closed issues unless the human asks, and should not mark work Ready without complete issue contracts.
+
 ## Orchestrator Heartbeat
 
 On every heartbeat:
@@ -337,6 +451,7 @@ On every heartbeat:
 9. Write claim state before launching any Worker.
 10. Generate the Worker Packet and create or instruct a Worker thread.
 11. Stop new launches after the fifth launch and emit Handoff YAML.
+12. If the queue is idle with no Ready or In Progress work, write an idle ledger comment and stop. The next action is Continuation Planner or human-created Ready issues.
 
 ## Worker Delivery Loop
 
@@ -422,4 +537,3 @@ The setup is valid when:
 - readiness audit workflow exists;
 - repo skills exist;
 - one low-risk pilot issue completes the full flow.
-
