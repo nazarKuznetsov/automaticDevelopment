@@ -2,75 +2,89 @@ name: Agent readiness audit
 
 on:
   issues:
-    types:
-      - opened
-      - edited
-      - labeled
-      - unlabeled
-      - reopened
+    types: [opened, edited, labeled, unlabeled, reopened]
 
 permissions:
-  issues: write
   contents: read
+  issues: write
 
 jobs:
   audit:
     if: contains(github.event.issue.labels.*.name, 'agent-ready')
     runs-on: ubuntu-latest
     steps:
-      - name: Audit agent-ready issue body
-        uses: actions/github-script@v7
+      - uses: actions/checkout@v4
+
+      - name: Audit real Issue Form values
+        uses: actions/github-script@v8
         with:
           script: |
+            const { auditIssueBody } = require('./.github/scripts/readiness-audit.cjs');
             const issue = context.payload.issue;
-            const body = issue.body || "";
-            const required = [
-              "Goal",
-              "Acceptance Criteria",
-              "Dependency / Blocker State",
-              "Validation Expectations",
-              "Security Impact",
-              "UI / Design Impact",
-              "QA Requirement",
-              "Primary Signal",
-              "Secondary Signals",
-              "Model / Risk expectation",
-              "TDD / Exemption",
-              "Graphify or fallback repository tracing"
-            ];
+            const labels = issue.labels.map((label) => typeof label === 'string' ? label : label.name);
+            let hasSubIssues = false;
+            let leafStateKnown = true;
 
-            const missing = required.filter((name) => !body.includes(name));
-            const hasBlockedLabel = issue.labels.some((label) => label.name === "blocked");
-
-            if (missing.length === 0 && !hasBlockedLabel) {
-              return;
+            try {
+              const data = await github.graphql(`
+                query($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    issue(number: $number) { subIssues(first: 1) { totalCount } }
+                  }
+                }
+              `, { owner: context.repo.owner, repo: context.repo.repo, number: issue.number });
+              hasSubIssues = data.repository.issue.subIssues.totalCount > 0;
+            } catch (error) {
+              leafStateKnown = false;
+              core.warning(`Native sub-issue check unavailable; readiness fails closed: ${error.message}`);
             }
 
-            const reasonLines = [];
-            if (missing.length > 0) {
-              reasonLines.push(`Missing readiness sections: ${missing.join(", ")}`);
-            }
-            if (hasBlockedLabel) {
-              reasonLines.push("Issue has the blocked label.");
-            }
+            const result = auditIssueBody({ body: issue.body || '', labels, hasSubIssues, leafStateKnown });
+            const marker = '<!-- codex-readiness-audit:v2 -->';
+            const body = [
+              marker,
+              '## Agent readiness audit',
+              '',
+              `Status: ${result.ready ? 'PASS' : 'FAIL'}`,
+              '',
+              ...(result.ready
+                ? ['All required Issue Form values are substantive, enumerated values are valid, acceptance contains three to five checks, and native leaf state is verified. Project Status and native dependencies remain Orchestrator checks.']
+                : ['The `agent-ready` label was removed.', '', 'Reasons:', ...result.reasons.map((reason) => `- ${reason}`)]),
+            ].join('\n');
 
-            const comment = [
-              "## Human action required",
-              "",
-              "Blocked action: agent-ready readiness gate",
-              `Reason: ${reasonLines.join(" ")}`,
-              `Issue: #${issue.number}`,
-              "Required human decision: complete readiness fields or remove `agent-ready`.",
-              `Exact command or URL: ${issue.html_url}`,
-              "Exact labels / Project fields / issue body: remove `agent-ready` until Project Status is Ready and no blockers remain.",
-              "Safe to continue after: readiness sections are complete, blockers are resolved, and GitHub Project Status is Ready."
-            ].join("\n");
-
-            await github.rest.issues.createComment({
+            const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              body: comment
+              per_page: 100,
             });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body,
+              });
+            }
 
-            core.setFailed("Issue is labeled agent-ready but failed readiness audit.");
+            if (!result.ready) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  name: 'agent-ready',
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              core.setFailed(result.reasons.join(' '));
+            }

@@ -1,4 +1,4 @@
 interface:
   display_name: "GitHub Agent Worker"
-  short_description: "Deliver one GitHub Issue through one branch and PR."
-  default_prompt: "Use this skill to deliver one ready GitHub Issue."
+  short_description: "Deliver one Issue through TDD and admission"
+  default_prompt: "Use $github-agent-worker to deliver this Worker Packet without creating a PR before admission PASS."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Project Planner"
+  short_description: "Plan lifecycle roadmaps and rolling waves"
+  default_prompt: "Use $github-project-planner to build the lifecycle roadmap and the current executable GitHub wave."

@@ -1,20 +1,17 @@
 ---
 import "../styles/global.css";
 
-const navItems = [
-  ["Overview", "#overview"],
-  ["Installation", "#installation"],
-  ["Agent Setup", "#agent-setup"],
-  ["Workflow", "#workflow"],
-  ["Required Setup", "#required-setup"],
-  ["Resources", "#resources"],
-  ["Deployment", "#deployment"],
-  ["Roadmap", "#roadmap"],
-];
-
+const base = import.meta.env.BASE_URL;
 const repoUrl = "https://github.com/nazarKuznetsov/automaticDevelopment";
-const pagesUrl = "https://nazarkuznetsov.github.io/automaticDevelopment/";
-const cloneUrl = "https://github.com/nazarKuznetsov/automaticDevelopment.git";
+const phases = ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"];
+const docs = [
+  ["Quickstart", "Install, configure, approve, pilot.", "quickstart"],
+  ["Existing Products", "Migrate v1 without losing product history.", "existing-products"],
+  ["Planning", "Roadmap all phases; execute one wave.", "planning"],
+  ["GitHub Model", "Hierarchy, dependencies, fields, states.", "github-model"],
+  ["Orchestration", "Worktrees, findings, heartbeat, handoff.", "orchestration"],
+  ["Pre-PR Gate", "Independent, SHA-bound admission.", "pre-pr-gate"],
+];
 ---
 
 <!doctype html>
@@ -22,381 +19,115 @@ const cloneUrl = "https://github.com/nazarKuznetsov/automaticDevelopment.git";
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="Codex Automation Guide is a premium static documentation portal and installable kit for GitHub-native Codex agent workflows."
-    />
-    <meta name="theme-color" content="#131313" />
-    <title>Codex Automation Guide</title>
+    <meta name="description" content="Lifecycle-driven Codex development with GitHub rolling waves, TDD Workers, independent pre-PR admission, and human phase gates." />
+    <meta name="theme-color" content="#0b0f17" />
+    <title>Codex Automation Guide v2</title>
   </head>
   <body>
-    <div class="page-shell">
-      <aside class="sidebar" aria-label="Documentation navigation">
-        <a class="brand-lockup" href="#top" aria-label="Codex Automation Guide home">
-          <span class="brand-mark"></span>
-          <span>
-            <strong>Codex Automation</strong>
-            <small>GitHub-native OS</small>
-          </span>
-        </a>
-        <nav>
-          {navItems.map(([label, href]) => <a href={href}>{label}</a>)}
-        </nav>
-        <div class="sidebar-status" aria-label="Static site status">
-          <span>Static runtime</span>
-          <strong>GitHub Pages ready</strong>
+    <header class="site-header">
+      <a class="brand" href={base}>
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span><strong>Codex Automation</strong><small>Workflow schema v2</small></span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href={`${base}docs/quickstart/`}>Guide</a>
+        <a href={repoUrl}>GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero section">
+        <div class="hero-copy">
+          <p class="eyebrow">Lifecycle-driven development</p>
+          <h1>Plan the product globally. Deliver it one verified wave at a time.</h1>
+          <p class="lede">A GitHub-native operating kit for Canonical Briefs, phase gates, native Issue hierarchy, isolated TDD Workers, bug feedback, and a strict admission gate before any pull request.</p>
+          <div class="actions">
+            <a class="button primary" href={`${base}docs/quickstart/`}>Start Quickstart</a>
+            <a class="button secondary" href={repoUrl}>View repository</a>
+          </div>
+          <dl class="signals">
+            <div><dt>Wave</dt><dd>≤ 5 leaf Issues</dd></div>
+            <div><dt>Writers</dt><dd>≤ 2 Workers</dd></div>
+            <div><dt>PR</dt><dd>Admission PASS first</dd></div>
+          </dl>
         </div>
-      </aside>
 
-      <header class="mobile-topbar">
-        <a class="brand-lockup" href="#top">
-          <span class="brand-mark"></span>
-          <span>Codex Automation</span>
-        </a>
-        <nav aria-label="Mobile navigation">
-          <a href="#installation">Install</a>
-          <a href="#resources">Resources</a>
-        </nav>
-      </header>
+        <div class="tech-core-panel" aria-label="Workflow signal visualization">
+          <div class="core-label"><span>Durable state</span><strong>GitHub → Codex → evidence</strong></div>
+          <canvas data-tech-core id="tech-core-canvas" width="720" height="520"></canvas>
+          <div class="tech-core-fallback" aria-hidden="true"><span></span></div>
+        </div>
+      </section>
 
-      <main id="top">
-        <section class="hero section-band">
-          <div class="hero-copy">
-            <p class="eyebrow">Codex Automation Guide</p>
-            <h1>Bootstrap GitHub-native agent workflows with a production-grade operating kit.</h1>
-            <p class="hero-lede">
-              A static developer portal for setting up Codex automation, project intake, GitHub
-              Project queues, Orchestrator handoff, Worker packets, and PR evidence loops.
-            </p>
-            <div class="hero-actions">
-              <a class="button primary" href="#installation">Start Setup</a>
-              <a class="button secondary" href="#resources">View Resources</a>
-            </div>
-            <dl class="signal-strip" aria-label="Workflow signals">
-              <div>
-                <dt>Runtime</dt>
-                <dd>Codex App</dd>
-              </div>
-              <div>
-                <dt>State</dt>
-                <dd>GitHub Project v2</dd>
-              </div>
-              <div>
-                <dt>Delivery</dt>
-                <dd>Issue → PR</dd>
-              </div>
-            </dl>
-          </div>
+      <section class="section lifecycle-section">
+        <div class="section-heading">
+          <p class="eyebrow">One lifecycle</p>
+          <h2>Automation expands only after the product contract is approved.</h2>
+          <p>Humans approve the brief, roadmap, phase boundaries, high-risk choices, and merge. Agents execute ordinary approved work and stop fail-closed when evidence is incomplete.</p>
+        </div>
+        <ol class="phase-track">
+          {phases.map((phase, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><strong>{phase}</strong></li>)}
+        </ol>
+      </section>
 
-          <div class="tech-core-panel" aria-label="Tech Core WebGL accent">
-            <div class="tech-core-heading">
-              <span>Tech Core</span>
-              <strong>Orchestrator signal</strong>
-            </div>
-            <canvas data-tech-core id="tech-core-canvas" width="720" height="720"></canvas>
-            <div class="tech-core-fallback" aria-hidden="true">
-              <span></span>
-            </div>
-          </div>
-        </section>
+      <section class="section split-section">
+        <div class="section-heading">
+          <p class="eyebrow">Quickstart</p>
+          <h2>Preview first. Apply safely. Configure fail-closed.</h2>
+          <p>The manifest distinguishes host-owned policy from managed kit files. A modified `AGENTS.md`, Issue Form, or workflow produces an exact merge plan and no partial write.</p>
+          <a class="text-link" href={`${base}docs/quickstart/`}>Read the complete setup →</a>
+        </div>
+        <div class="code-card">
+          <div class="code-title">Install workflow v2</div>
+          <pre><code>scripts/install-kit.sh --target /path/to/repo --dry-run
+scripts/install-kit.sh --target /path/to/repo --apply
 
-        <section id="overview" class="section-band docs-section">
-          <div class="section-heading">
-            <p class="eyebrow">Overview</p>
-            <h2>Everything needed to turn a normal repo into an agent-ready queue.</h2>
-            <p>
-              Codex Automation Guide packages the operating docs, GitHub templates, readiness
-              checks, and Codex skills needed to run mostly autonomous development with conservative
-              human gates.
-            </p>
-          </div>
-          <div class="panel-grid three">
-            <article class="glass-panel">
-              <span class="panel-kicker">Bootstrap</span>
-              <h3>Project Intake Packet</h3>
-              <p>Capture goals, constraints, validation commands, repository metadata, and human gates once at the start.</p>
-            </article>
-            <article class="glass-panel">
-              <span class="panel-kicker">Queue</span>
-              <h3>GitHub Setup Packet</h3>
-              <p>Create labels, Project v2 fields, issue forms, PR evidence templates, and readiness audit guardrails.</p>
-            </article>
-            <article class="glass-panel">
-              <span class="panel-kicker">Execution</span>
-              <h3>Orchestrator + Workers</h3>
-              <p>Run bounded Worker launches from GitHub state, with issue comments as the durable state ledger.</p>
-            </article>
-          </div>
-        </section>
+# later
+scripts/install-kit.sh --target /path/to/repo --upgrade</code></pre>
+        </div>
+      </section>
 
-        <section id="installation" class="section-band docs-section">
-          <div class="section-heading">
-            <p class="eyebrow">Installation</p>
-            <h2>Clone the guide, copy the kit, then let Codex run the setup audit.</h2>
-          </div>
-          <div class="code-layout">
-            <div class="code-card">
-              <div class="code-title">Local setup</div>
-              <pre><code>git clone {cloneUrl}
-cd automaticDevelopment
-npm install
-npm run dev</code></pre>
-            </div>
-            <div class="code-card">
-              <div class="code-title">Install kit into a target repo</div>
-              <pre><code>cp -R kit/repo/. /path/to/target-repo/
-
-# optional guarded installer
-scripts/install-kit.sh --target /path/to/target-repo --dry-run
-scripts/install-kit.sh --target /path/to/target-repo</code></pre>
-            </div>
-          </div>
-        </section>
-
-        <section id="agent-setup" class="section-band docs-section">
-          <div class="section-heading">
-            <p class="eyebrow">Agent Setup</p>
-            <h2>Open a new Codex chat, paste one prompt, and start planning with the guide.</h2>
-            <p>
-              Use the first prompt for a new repository setup. Use the continuation prompt when a
-              project already has completed issues, merged PRs, and an idle queue that needs the
-              next wave of work.
-            </p>
-          </div>
-
-          <div class="agent-setup-layout">
-            <div class="setup-steps">
-              <article class="glass-panel strong">
-                <span class="panel-kicker">Recommended</span>
-                <h3>Plan Mode first</h3>
-                <p>
-                  Open the target repository in Codex App, enable Plan Mode, select the strongest
-                  available model, and paste the starter prompt before any code changes happen.
-                </p>
-              </article>
-              <article class="glass-panel">
-                <span class="panel-kicker">Installed Kit</span>
-                <h3>Use local repo rules</h3>
-                <p>
-                  Copy <code>kit/repo/</code> into the target repo first. The agent should then use
-                  local <code>AGENTS.md</code>, docs, templates, and skills as the primary protocol.
-                </p>
-              </article>
-              <article class="glass-panel">
-                <span class="panel-kicker">Guide Only</span>
-                <h3>Reference the public guide</h3>
-                <p>
-                  If the kit is not installed yet, give the agent this site and repository link so
-                  it can read the workflow documents before producing the first planning packet.
-                </p>
-              </article>
-              <article class="glass-panel">
-                <span class="panel-kicker">Continuation</span>
-                <h3>Resume from GitHub state</h3>
-                <p>
-                  When all current issues are done and the queue is idle, start a Continuation
-                  Planner. It audits closed issues, merged PRs, ledgers, and current code before
-                  proposing the next wave.
-                </p>
-              </article>
-            </div>
-
-            <div class="prompt-stack">
-              <div class="code-card prompt-card start-prompt-card">
-                <div class="code-title">Start from scratch prompt</div>
-                <pre><code>Мы работаем по Codex Automation Guide:
-https://nazarkuznetsov.github.io/automaticDevelopment/
-https://github.com/nazarKuznetsov/automaticDevelopment
-
-Режим: Plan Mode. Код пока не меняй.
-
-Target repo: &lt;вставь ссылку на мой репозиторий&gt;
-Project idea: &lt;кратко опиши идею&gt;
-Autonomy mode: mostly autonomous with conservative human gates.
-
-Сначала прочитай README.md, INSTALL.md и kit/repo/docs/github-agent-workflow.md из guide repo.
-Если kit уже установлен в target repo, используй локальные AGENTS.md, docs и .agents/skills как основной источник правил.
-
-Дальше помоги мне brainstormить идею и подготовь:
-1. Project Intake Packet YAML
-2. GitHub Setup Packet
-3. список первых setup issues
-4. human gates
-5. validation commands
-6. prompt для запуска Orchestrator после подтверждения плана
-
-Не запускай Worker, не меняй код и не создавай PR, пока я явно не подтвержу план.</code></pre>
-              </div>
-
-              <div class="code-card prompt-card continue-prompt-card">
-                <div class="code-title">Continue existing project prompt</div>
-                <pre><code>Мы продолжаем существующий проект по Codex Automation Guide.
-
-Guide:
-https://nazarkuznetsov.github.io/automaticDevelopment/
-https://github.com/nazarKuznetsov/automaticDevelopment
-
-Режим: Plan Mode. Код пока не меняй.
-
-Target repo: &lt;owner/repo&gt;
-Goal: продолжить развитие проекта, не начинать bootstrap заново.
-
-Сначала выполни continuation audit:
-1. Прочитай README, AGENTS.md, docs/github-agent-workflow.md и repo-local kit files.
-2. Прочитай все open и recently closed issues.
-3. Прочитай merged/open PRs, связанные с последними issues.
-4. Найди последний State Ledger Comment, Worker Completion Reports и Handoff YAML, если есть.
-5. Определи состояние проекта:
-   - bootstrap_needed
-   - active_orchestration
-   - idle_after_completed_wave
-   - handoff_takeover_required
-6. Скажи, что уже сделано и что нельзя дублировать.
-
-Если Ready issues уже есть:
-- подготовь Orchestrator Start Packet для продолжения работы.
-
-Если Ready issues нет, но проект нужно развивать дальше:
-- создай Continuation Planner Packet;
-- предложи следующую волну из максимум 5 issues;
-- для каждой issue укажи goal, acceptance criteria, dependencies, validation, risk, QA, security/design impact, out of scope;
-- укажи labels и Project fields;
-- подготовь prompt для Orchestrator, который будет запускаться после моего подтверждения.
-
-Не создавай issues, PR, branches и не меняй код, пока я явно не подтвержу continuation plan.</code></pre>
-              </div>
-            </div>
-          </div>
-
-          <div class="setup-footer">
-            <article class="glass-panel checklist-panel">
-              <span class="panel-kicker">Before Paste</span>
-              <h3>First-run checklist</h3>
-              <ul>
-                <li>Codex App is opened in the target repository.</li>
-                <li>Plan Mode is enabled before the prompt is sent.</li>
-                <li>The strongest available model is selected for planning.</li>
-                <li>The GitHub repository URL is ready to paste.</li>
-                <li>The user can describe the project idea and autonomy level.</li>
-              </ul>
-            </article>
-
-            <div class="resource-grid compact">
-              <a class="resource-card" href={pagesUrl}>
-                <span>Guide</span>
-                <strong>GitHub Pages</strong>
-              </a>
-              <a class="resource-card" href={repoUrl}>
-                <span>Source</span>
-                <strong>GitHub repo</strong>
-              </a>
-              <a class="resource-card" href={`${repoUrl}/tree/main/kit/repo`}>
-                <span>Kit</span>
-                <strong>kit/repo/</strong>
-              </a>
-              <a class="resource-card" href={`${repoUrl}/blob/main/INSTALL.md`}>
-                <span>Install</span>
-                <strong>INSTALL.md</strong>
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <section id="workflow" class="section-band docs-section">
-          <div class="section-heading">
-            <p class="eyebrow">Workflow</p>
-            <h2>Brainstorm, Planner, Continuation, Orchestrator, Worker, PR.</h2>
-          </div>
-          <ol class="workflow-list">
-            <li><span>01</span><div><h3>Brainstorm</h3><p>Define the project goal, audience, constraints, and acceptance criteria.</p></div></li>
-            <li><span>02</span><div><h3>Planner</h3><p>Audit the repository and produce Project Intake plus GitHub Setup packets.</p></div></li>
-            <li><span>03</span><div><h3>Continuation Planner</h3><p>When the queue is idle after a completed wave, audit GitHub state and create the next issue wave.</p></div></li>
-            <li><span>04</span><div><h3>Orchestrator</h3><p>Read the GitHub Project queue, write state ledger comments, claim ready issues, and create Worker packets.</p></div></li>
-            <li><span>05</span><div><h3>Worker</h3><p>Deliver one issue through one worktree, one branch, one PR, and validation evidence.</p></div></li>
-            <li><span>06</span><div><h3>Handoff</h3><p>After five Worker launches, the Orchestrator emits handoff YAML and a replacement audits state before continuing.</p></div></li>
-          </ol>
-        </section>
-
-        <section id="required-setup" class="section-band docs-section">
-          <div class="section-heading">
-            <p class="eyebrow">Required Setup</p>
-            <h2>GitHub is the system of record.</h2>
-          </div>
-          <div class="panel-grid two">
-            <article class="glass-panel strong">
-              <h3>GitHub Project v2 fields</h3>
-              <ul>
-                <li>Status: Intake, Ready, In Progress, Review, Blocked, Done</li>
-                <li>Work Type: Guide, Template, Automation, Site, Docs, Feature, Bug, Refactor</li>
-                <li>Risk: Low, Medium, High</li>
-                <li>QA Required: Yes, No</li>
-              </ul>
-            </article>
-            <article class="glass-panel">
-              <h3>Access checks</h3>
-              <pre><code>gh auth status
-gh repo view
-gh project list --owner nazarKuznetsov</code></pre>
-            </article>
-          </div>
-        </section>
-
-        <section id="resources" class="section-band docs-section">
-          <div class="section-heading">
-            <p class="eyebrow">Resources</p>
-            <h2>Copyable files, trusted links, and the workflow source.</h2>
-          </div>
-          <div class="resource-grid">
-            <a class="resource-card" href={repoUrl}>
-              <span>Repository</span>
-              <strong>nazarKuznetsov/automaticDevelopment</strong>
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Canonical guide</p>
+          <h2>The website renders the same Markdown installed into your repository.</h2>
+        </div>
+        <div class="docs-grid">
+          {docs.map(([title, description, slug]) => (
+            <a class="doc-card" href={`${base}docs/${slug}/`}>
+              <span>{title}</span><p>{description}</p><strong>Open →</strong>
             </a>
-            <a class="resource-card" href={`${repoUrl}/tree/main/kit/repo`}>
-              <span>Installable kit</span>
-              <strong>kit/repo/</strong>
-            </a>
-            <a class="resource-card" href={`${repoUrl}/blob/main/INSTALL.md`}>
-              <span>Installer docs</span>
-              <strong>INSTALL.md</strong>
-            </a>
-            <a class="resource-card" href="https://cli.github.com/">
-              <span>GitHub CLI</span>
-              <strong>gh auth status</strong>
-            </a>
-          </div>
-        </section>
+          ))}
+        </div>
+      </section>
 
-        <section id="deployment" class="section-band docs-section">
-          <div class="section-heading">
-            <p class="eyebrow">Deployment</p>
-            <h2>Static GitHub Pages deployment through Actions.</h2>
-            <p>
-              The site builds to `dist/` and deploys through GitHub Pages. Enable Pages with Source
-              set to GitHub Actions after the initial commit lands.
-            </p>
+      <section class="section prompt-section">
+        <div class="section-heading">
+          <p class="eyebrow">Copy-paste start</p>
+          <h2>Begin with Discovery, not a backlog.</h2>
+        </div>
+        <div class="prompt-grid">
+          <div class="code-card start-prompt-card">
+            <div class="code-title">Start · English</div>
+            <pre><code>Use $project-brainstorm for &lt;owner/repo&gt;.
+Idea: &lt;idea&gt;.
+Do not create backlog or change code. Produce Canonical Brief Packet v2, docs/product/canonical.md, material open decisions, and an approval checklist.</code></pre>
           </div>
-          <div class="code-card wide">
-            <div class="code-title">Production build</div>
-            <pre><code>npm run check
-npm run build
-npm run preview</code></pre>
+          <div class="code-card continue-prompt-card">
+            <div class="code-title">Старт · Русский</div>
+            <pre><code>Используй $project-brainstorm для &lt;owner/repo&gt;.
+Идея: &lt;идея&gt;.
+Не создавай backlog и не меняй код. Подготовь Canonical Brief Packet v2, docs/product/canonical.md, существенные открытые решения и checklist для утверждения.</code></pre>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section id="roadmap" class="section-band docs-section final-section">
-          <div class="section-heading">
-            <p class="eyebrow">Roadmap</p>
-            <h2>Keep the core static. Expand automation only where it protects the workflow.</h2>
-          </div>
-          <div class="panel-grid three">
-            <article class="glass-panel"><h3>v1</h3><p>Static docs portal, installable kit, readiness audit, Orchestrator and Worker skills.</p></article>
-            <article class="glass-panel"><h3>v1.1</h3><p>Optional release archives, richer setup packet examples, and visual workflow diagrams.</p></article>
-            <article class="glass-panel"><h3>v2</h3><p>Optional controller/service exploration after the GitHub-native manual loop is proven.</p></article>
-          </div>
-          <a class="button primary" href={pagesUrl}>Open GitHub Pages</a>
-        </section>
-      </main>
-    </div>
+      <section class="section final-cta">
+        <p class="eyebrow">Ready to adopt</p>
+        <h2>Keep GitHub durable, agents bounded, and every PR earned by evidence.</h2>
+        <div class="actions"><a class="button primary" href={`${base}docs/quickstart/`}>Open the guide</a></div>
+      </section>
+    </main>
 
     <script>
       import "../scripts/copy-code.ts";

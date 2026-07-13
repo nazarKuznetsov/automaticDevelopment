@@ -1,128 +1,116 @@
-name: Agent Task
-description: Create a GitHub-native task contract for Codex Orchestrator and Worker.
-title: "[Agent Task]: "
-labels:
-  - workflow
+name: Agent Work Item
+description: Define an Epic, Capability, Task, Bug, Docs, Automation, or Refactor contract.
+title: "[Work]: "
+labels: [workflow]
 body:
   - type: markdown
     attributes:
       value: |
-        Fill every required field before adding `agent-ready` or setting Project Status to Ready.
-  - type: textarea
-    id: goal
-    attributes:
-      label: Goal
-      description: What should be true when this issue is complete?
-      placeholder: Describe the user-visible or repository-visible outcome.
-    validations:
-      required: true
-  - type: textarea
-    id: acceptance
-    attributes:
-      label: Acceptance Criteria
-      description: Observable pass/fail criteria.
-      placeholder: |
-        - Criterion 1
-        - Criterion 2
-        - Criterion 3
-    validations:
-      required: true
-  - type: textarea
-    id: blockers
-    attributes:
-      label: Dependency / Blocker State
-      description: Name dependencies, blockers, linked issues, and decisions needed.
-      placeholder: "none, or list GitHub issue links and required decisions"
-    validations:
-      required: true
-  - type: textarea
-    id: validation
-    attributes:
-      label: Validation Expectations
-      description: Commands and evidence expected from the Worker.
-      placeholder: |
-        Primary Signal:
-        Secondary Signals:
-        Commands:
-    validations:
-      required: true
-  - type: textarea
-    id: security
-    attributes:
-      label: Security Impact
-      description: Auth, permissions, secrets, PII, file handling, webhooks, external exposure, or none.
-      placeholder: "none, or describe impact and required checks"
-    validations:
-      required: true
-  - type: textarea
-    id: design
-    attributes:
-      label: UI / Design Impact
-      description: UI surfaces, states, responsive behavior, accessibility, or none.
-      placeholder: "none, or describe design impact and required checks"
-    validations:
-      required: true
+        Fill real values. Only an unblocked XS–M leaf Issue may receive `agent-ready`.
   - type: dropdown
-    id: qa
+    id: work_type
     attributes:
-      label: QA Requirement
-      description: Whether QA evidence is required before Done.
-      options:
-        - "Yes"
-        - "No"
-    validations:
-      required: true
-  - type: textarea
-    id: primary_signal
+      label: Work Type
+      options: [Epic, Capability, Task, Bug, Docs, Automation, Refactor]
+    validations: { required: true }
+  - type: dropdown
+    id: phase
     attributes:
-      label: Primary Signal
-      description: The main proof that the task works.
-      placeholder: "Example: specific test, build, browser flow, or manual verification"
-    validations:
-      required: true
-  - type: textarea
-    id: secondary_signals
+      label: Phase
+      options: [Discovery, Planning, Design, Foundation, MVP, Stabilization, Production, Growth]
+    validations: { required: true }
+  - type: dropdown
+    id: priority
     attributes:
-      label: Secondary Signals
-      description: Additional tests, lint, typecheck, build, CI, logs, or screenshots.
-      placeholder: |
-        - npm test
-        - npm run lint
-        - npm run build
-    validations:
-      required: true
+      label: Priority
+      options: [P0, P1, P2, P3]
+    validations: { required: true }
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      description: L and XL must be decomposed before agent-ready.
+      options: [XS, S, M, L, XL]
+    validations: { required: true }
   - type: dropdown
     id: risk
     attributes:
       label: Risk
-      options:
-        - Low
-        - Medium
-        - High
-    validations:
-      required: true
-  - type: textarea
-    id: model_router
+      options: [Low, Medium, High]
+    validations: { required: true }
+  - type: dropdown
+    id: qa_required
     attributes:
-      label: Model / Risk expectation
-      description: Recommended model or reason Orchestrator should choose conservatively.
-      placeholder: "Use default for low risk; use strongest available model for ambiguous, security, auth, migration, API, or multi-surface work."
-    validations:
-      required: true
+      label: QA Required
+      options: ["Yes", "No"]
+    validations: { required: true }
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Observable user or repository outcome.
+    validations: { required: true }
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Three to five observable pass/fail criteria.
+      placeholder: |
+        - Given ..., when ..., then ...
+    validations: { required: true }
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Dependency / Blocker State
+      description: Use native dependencies for enforcement; explain them here.
+      placeholder: "None, or linked native dependency Issues."
+    validations: { required: true }
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation Expectations
+      description: Exact targeted, full, browser, or manual checks.
+    validations: { required: true }
+  - type: textarea
+    id: primary_signal
+    attributes:
+      label: Primary Signal
+      description: Main user-visible or runtime proof of completion.
+    validations: { required: true }
+  - type: textarea
+    id: secondary_signals
+    attributes:
+      label: Secondary Signals
+      description: Tests, typecheck, lint, build, logs, screenshots, and CI.
+    validations: { required: true }
+  - type: textarea
+    id: security
+    attributes:
+      label: Security Impact
+      placeholder: "None, or auth/data/security surface and required review."
+    validations: { required: true }
+  - type: textarea
+    id: design
+    attributes:
+      label: UI / Design Impact
+      placeholder: "None, or flows, states, responsive, accessibility, content, and evidence."
+    validations: { required: true }
   - type: textarea
     id: tdd
     attributes:
       label: TDD / Exemption
-      description: State whether TDD RED/GREEN is required or exempted.
-      placeholder: "TDD required, or docs/config-only exemption with reason"
-    validations:
-      required: true
+      placeholder: "TDD required, or docs/config exemption with reason."
+    validations: { required: true }
   - type: textarea
     id: tracing
     attributes:
-      label: Graphify or fallback repository tracing
-      description: Owner layer and files/surfaces the Worker should inspect before changes.
-      placeholder: "Owner layer, callers, routes, services, tests, docs"
-    validations:
-      required: true
-
+      label: Repository Tracing
+      description: Owning layer and coupled callers/contracts/tests/docs to inspect.
+    validations: { required: true }
+  - type: textarea
+    id: human_gates
+    attributes:
+      label: Human Gates
+      description: Phase, high-risk, migration, dependency, merge, or other required decisions.
+      placeholder: "Human merge approval only, or list additional gates."
+    validations: { required: true }

@@ -2,59 +2,53 @@
 
 Closes #
 
-## What Changed
+## Change and Owner Layer
 
--
+- Outcome:
+- Owner layer:
+- Coupled contracts checked:
 
-## Acceptance Evidence
+## Acceptance and TDD
 
-- [ ] Criterion:
-- [ ] Evidence:
-
-## TDD RED/GREEN
-
+- [ ] Every acceptance criterion has evidence.
 - RED:
 - GREEN:
-- Refactor:
-- Exemption:
-
-## Repository Tracing
-
-- Owner layer:
-- Files inspected:
-- Contract/API impact:
+- Refactor or allowed exemption:
 
 ## Validation
 
-- Primary signal status:
-- Secondary signal status:
-- Commands and results:
+- Primary signal status: met / not met / partially validated
+- Targeted commands/results:
+- Full commands/results:
+- Branch CI run and commit SHA:
 
-## Security / Design
+## Independent Review
 
-- Security impact:
-- UI/design impact:
-- Required review:
+- Reviewer: PASS / FAIL
+- QA: PASS / FAIL
+- Design: PASS / NOT_REQUIRED / FAIL
+- Security: PASS / NOT_REQUIRED / FAIL
 
-## QA Evidence
+## Pre-PR Admission
 
-- QA required: Yes / No
-- Evidence:
-- Remaining risk:
+- Report: PASS
+- Report commit SHA:
+- Blocking dependencies: clear
+- Baseline regressions: none
+- Legacy baseline Bug links:
 
-## Worker Completion Report
+## Documentation and Rollout
 
-Issue:
-PR:
-Branch:
-
-Acceptance:
--
-
-Validation:
--
+- Documentation: updated / not needed / needs alignment
+- Migration / rollout implications:
+- Remaining risks:
 
 ## Human Gates
 
-This PR must not be merged, deployed, released, or used for migrations, secrets, billing, destructive ops, production data, auth/permissions, public API, or production dependency changes without explicit human approval.
+- [ ] Human merge approval is still required.
+- Additional gates:
 
+## Worker Completion Report
+
+- Issue comment link:
+- Finding Packets resolved:

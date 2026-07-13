@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pre-PR Admission Evidence v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "commit_sha", "worker", "issue", "acceptance", "tdd", "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "pre_pr_admission" },
+    "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "worker": {
+      "type": "object",
+      "required": ["source"],
+      "properties": { "source": { "$ref": "#/$defs/source" } },
+      "additionalProperties": false
+    },
+    "issue": {
+      "type": "object",
+      "required": ["number", "is_leaf", "unresolved_dependencies"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "is_leaf": { "const": true },
+        "unresolved_dependencies": { "type": "array", "maxItems": 0 }
+      },
+      "additionalProperties": false
+    },
+    "acceptance": {
+      "type": "object",
+      "required": ["passed", "evidence"],
+      "properties": {
+        "passed": { "const": true },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+      },
+      "additionalProperties": false
+    },
+    "tdd": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["status", "red", "green"],
+          "properties": {
+            "status": { "const": "PASS" },
+            "red": { "$ref": "#/$defs/command" },
+            "green": { "$ref": "#/$defs/command" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["status", "exemption_type", "reason"],
+          "properties": {
+            "status": { "const": "EXEMPT" },
+            "exemption_type": { "enum": ["docs", "config"] },
+            "reason": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "local_validation": {
+      "type": "object",
+      "required": ["targeted", "full"],
+      "properties": {
+        "targeted": { "$ref": "#/$defs/validation" },
+        "full": { "$ref": "#/$defs/validation" }
+      },
+      "additionalProperties": false
+    },
+    "reviews": {
+      "type": "object",
+      "required": ["reviewer", "qa", "design", "security"],
+      "properties": {
+        "reviewer": { "$ref": "#/$defs/review" },
+        "qa": { "$ref": "#/$defs/review" },
+        "design": { "$ref": "#/$defs/conditional_review" },
+        "security": { "$ref": "#/$defs/conditional_review" }
+      },
+      "additionalProperties": false
+    },
+    "branch_ci": {
+      "type": "object",
+      "required": ["status", "commit_sha", "workflow", "run_url"],
+      "properties": {
+        "status": { "const": "PASS" },
+        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "workflow": { "type": "string", "minLength": 1 },
+        "run_url": { "type": "string", "format": "uri", "pattern": "^https://.+/actions/runs/[0-9]+" }
+      },
+      "additionalProperties": false
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["new_failures", "affected_failures", "legacy_failures"],
+      "properties": {
+        "new_failures": { "type": "array", "maxItems": 0 },
+        "affected_failures": { "type": "array", "maxItems": 0 },
+        "legacy_failures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["signal", "issue", "proven_pre_existing", "base_sha", "evidence"],
+            "properties": {
+              "signal": { "type": "string", "minLength": 1 },
+              "issue": { "type": "integer", "minimum": 1 },
+              "proven_pre_existing": { "const": true },
+              "base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+              "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "documentation": { "$ref": "#/$defs/impact" },
+    "rollout": { "$ref": "#/$defs/impact" },
+    "human_gates": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {
+        "status": { "enum": ["CLEAR", "BLOCKED"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } }
+      },
+      "additionalProperties": false
+    },
+    "existing_pr_for_sha": {
+      "type": "object",
+      "required": ["number", "url", "commit_sha"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["agent_task", "human"] },
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["source", "observed"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "observed": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "command": {
+      "type": "object",
+      "required": ["command", "exit_code", "observed"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "exit_code": { "type": "integer" },
+        "observed": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "required": ["status", "commit_sha", "commands"],
+      "properties": {
+        "status": { "const": "PASS" },
+        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "commands": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/command" } }
+      },
+      "additionalProperties": false
+    },
+    "review": {
+      "type": "object",
+      "required": ["status", "commit_sha", "source", "evidence"],
+      "properties": {
+        "status": { "const": "PASS" },
+        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "source": { "$ref": "#/$defs/source" },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+      },
+      "additionalProperties": false
+    },
+    "conditional_review": {
+      "oneOf": [
+        { "$ref": "#/$defs/review" },
+        {
+          "type": "object",
+          "required": ["status", "reason"],
+          "properties": {
+            "status": { "const": "NOT_REQUIRED" },
+            "reason": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "impact": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["status", "evidence"],
+          "properties": {
+            "status": { "const": "PASS" },
+            "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["status", "reason"],
+          "properties": {
+            "status": { "const": "NOT_REQUIRED" },
+            "reason": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

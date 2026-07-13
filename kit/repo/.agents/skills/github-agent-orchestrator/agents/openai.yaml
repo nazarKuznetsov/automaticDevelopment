@@ -1,4 +1,4 @@
 interface:
   display_name: "GitHub Agent Orchestrator"
-  short_description: "Run the GitHub-native Codex Orchestrator loop."
-  default_prompt: "Use this skill to run the GitHub-native Orchestrator heartbeat."
+  short_description: "Execute approved GitHub rolling waves safely"
+  default_prompt: "Use $github-agent-orchestrator to execute the approved Ready wave with strict admission gates."

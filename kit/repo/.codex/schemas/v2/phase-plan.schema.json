@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase Plan Packet v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "phase", "iteration", "hierarchy", "dependencies", "ready_wave", "deferred", "phase_exit_evidence"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "phase_plan" },
+    "phase": { "type": "string", "minLength": 1 },
+    "iteration": { "type": "string", "minLength": 1 },
+    "hierarchy": { "type": "array" },
+    "dependencies": { "type": "array" },
+    "ready_wave": { "type": "array", "maxItems": 5, "items": { "type": "object", "required": ["issue_ref", "work_type", "priority", "size", "risk", "qa_required", "acceptance", "validation"], "properties": { "size": { "enum": ["XS", "S", "M"] } } } },
+    "deferred": { "type": "array" },
+    "phase_exit_evidence": { "type": "array" }
+  }
+}

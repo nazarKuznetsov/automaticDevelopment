@@ -45,7 +45,7 @@ try {
   await desktop.goto(url, { waitUntil: "networkidle" });
   await desktop.screenshot({ path: "test-results/desktop.png", fullPage: true });
   const title = await desktop.locator("h1").textContent();
-  if (!title?.includes("GitHub-native agent workflows")) {
+  if (!title?.includes("Plan the product globally")) {
     throw new Error("Desktop hero heading did not render expected text.");
   }
   const codeBlockCount = await desktop.locator("pre > code").count();
@@ -66,13 +66,13 @@ try {
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
   await mobile.goto(url, { waitUntil: "networkidle" });
   await mobile.screenshot({ path: "test-results/mobile.png", fullPage: true });
-  const mobileCta = await mobile.locator("text=Start Setup").count();
+  const mobileCta = await mobile.locator("text=Start Quickstart").count();
   if (mobileCta < 1) {
-    throw new Error("Mobile Start Setup CTA missing.");
+    throw new Error("Mobile Quickstart CTA missing.");
   }
-  const mobileContinuationPrompt = await mobile.locator("text=Continue existing project prompt").count();
-  if (mobileContinuationPrompt !== 1) {
-    throw new Error("Mobile continuation prompt missing.");
+  const mobileRussianPrompt = await mobile.locator("text=Старт · Русский").count();
+  if (mobileRussianPrompt !== 1) {
+    throw new Error("Mobile Russian prompt missing.");
   }
   const noMobileOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   if (!noMobileOverflow) {
@@ -84,6 +84,12 @@ try {
   const staticFlag = await reduced.locator(".tech-core-panel[data-tech-core-static='true']").count();
   if (staticFlag !== 1) {
     throw new Error("Reduced-motion Tech Core fallback did not activate.");
+  }
+
+  const docs = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await docs.goto(new URL("docs/pre-pr-gate/", url).toString(), { waitUntil: "networkidle" });
+  if ((await docs.locator("h1", { hasText: "Strict pre-PR admission" }).count()) !== 1) {
+    throw new Error("Canonical Markdown docs route did not render.");
   }
 
   console.log("PASS: visual checks completed");

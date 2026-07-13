@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Worker Packet v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "repository", "issue", "branch", "phase", "scope", "out_of_scope", "acceptance", "validation", "reviewers", "human_gates"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "worker" },
+    "repository": { "type": "string", "minLength": 1 },
+    "issue": { "type": "integer", "minimum": 1 },
+    "branch": { "type": "string", "pattern": "^agent/[0-9]+-" },
+    "phase": { "type": "string" },
+    "scope": { "type": "array", "minItems": 1 },
+    "out_of_scope": { "type": "array" },
+    "acceptance": { "type": "array", "minItems": 1 },
+    "validation": { "type": "object" },
+    "reviewers": { "type": "array", "contains": { "const": "reviewer" } },
+    "human_gates": { "type": "array" }
+  }
+}

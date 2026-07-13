@@ -1,62 +1,48 @@
-# Codex Automation Guide
+# Codex Automation Guide v2
 
-Premium static documentation portal and installable repository kit for GitHub-native Codex automation workflows.
+Lifecycle-driven, GitHub-native development for Codex: Canonical Brief → global roadmap → design gate → rolling waves → isolated TDD Workers → independent SHA-bound admission → human merge.
 
-The project publishes a GitHub Pages site at:
+- Published guide: <https://nazarkuznetsov.github.io/automaticDevelopment/>
+- Installable kit: `kit/repo/`
+- Canonical documentation source: `kit/repo/docs/guide/*.md`
 
-```text
-https://nazarkuznetsov.github.io/automaticDevelopment/
-```
-
-Repository:
-
-```text
-https://github.com/nazarKuznetsov/automaticDevelopment
-```
-
-## What This Contains
-
-- A static Astro documentation portal.
-- A lightweight browser-only Three.js Tech Core accent.
-- A GitHub Pages deployment workflow.
-- An installable workflow kit in `kit/repo/`.
-- An optional local installer in `scripts/install-kit.sh`.
-
-## Local Development
+## Local development
 
 ```bash
 git clone https://github.com/nazarKuznetsov/automaticDevelopment.git
 cd automaticDevelopment
 npm install
-npm run dev
-```
-
-## Build
-
-```bash
+npm test
 npm run check
 npm run build
-npm run preview
 ```
 
-## Install The Workflow Kit Into Another Repository
-
-Manual install:
+Run the visual suite against a local preview:
 
 ```bash
-cp -R kit/repo/. /path/to/target-repo/
+npm run preview
+PREVIEW_URL=http://127.0.0.1:4321/automaticDevelopment/ npm run test:visual
 ```
 
-Optional installer:
+## Install into a target repository
 
 ```bash
 scripts/install-kit.sh --target /path/to/target-repo --dry-run
-scripts/install-kit.sh --target /path/to/target-repo
+scripts/install-kit.sh --target /path/to/target-repo --apply
 ```
 
-See `INSTALL.md` for detailed setup.
+For an installed v2 kit:
 
-## Static Hosting
+```bash
+scripts/install-kit.sh --target /path/to/target-repo --upgrade
+```
 
-This project is static-only and GitHub Pages-compatible. It does not use a backend, database, API routes, server-side secrets, or authentication.
+The installer uses `kit/manifest.json` and `.codex/kit-lock.json`. It never blindly overwrites host-owned `AGENTS.md`, templates, workflows, product contracts, or workflow configuration; manually merged host files require an explicit path-scoped `--accept-host`. See [INSTALL.md](INSTALL.md).
 
+Repositories that already used workflow v1 should follow the canonical [Existing Products migration](kit/repo/docs/guide/existing-products.md): preserve the current Project/history, reconcile contracts and baseline, then continue from the evidence-backed phase instead of repeating bootstrap.
+
+## Scope
+
+The kit uses Codex desktop tasks/worktrees and native GitHub Issues, Project v2, Actions, PRs, sub-issues, and dependencies. It adds no hosted controller, database, webhook service, or required Figma integration. Scheduled local heartbeats require the Codex desktop app and an available checkout.
+
+No live GitHub pilot, Issue, branch, or PR is created by repository tests. The dogfood pilot requires a separate human approval.

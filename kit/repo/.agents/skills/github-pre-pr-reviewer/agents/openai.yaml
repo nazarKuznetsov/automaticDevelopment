@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Pre-PR Reviewer"
+  short_description: "Independently audit PR admission evidence"
+  default_prompt: "Use $github-pre-pr-reviewer to audit this commit and issue before any pull request is created."

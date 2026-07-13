@@ -1,0 +1,23 @@
+name: Agent branch validation
+
+on:
+  push:
+    branches: ["agent/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-branch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run configured full validation
+        run: node .codex/scripts/run-validation.mjs --scope full
