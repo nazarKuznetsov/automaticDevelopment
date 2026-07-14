@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase Plan Packet v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "revision", "phase", "iteration", "hierarchy", "dependencies", "ready_wave", "deferred", "phase_exit_evidence", "approval"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "phase_plan" },
+    "revision": { "type": "string", "minLength": 1 },
+    "phase": { "enum": ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"] },
+    "iteration": { "type": "string", "minLength": 1 },
+    "hierarchy": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["plan_item_id", "parent_plan_item_id", "title", "work_type"],
+        "properties": {
+          "plan_item_id": { "$ref": "#/$defs/plan_item_id" },
+          "parent_plan_item_id": { "oneOf": [{ "$ref": "#/$defs/plan_item_id" }, { "type": "null" }] },
+          "title": { "type": "string", "minLength": 1 },
+          "work_type": { "enum": ["Epic", "Capability", "Task", "Bug", "Docs", "Automation", "Refactor"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["blocked", "blocking"],
+        "properties": {
+          "blocked": { "$ref": "#/$defs/plan_item_id" },
+          "blocking": { "$ref": "#/$defs/plan_item_id" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ready_wave": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/merge_unit" } },
+    "deferred": { "type": "array" },
+    "phase_exit_evidence": { "type": "array" },
+    "approval": {
+      "type": "object",
+      "required": ["status", "revision"],
+      "properties": {
+        "status": { "enum": ["PROPOSED", "APPROVED", "REJECTED"] },
+        "revision": { "type": "string", "minLength": 1 },
+        "approved_by": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+    "string_list": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "conflict_keys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } },
+    "merge_unit": {
+      "type": "object",
+      "required": ["plan_item_id", "parent_plan_item_id", "title", "work_type", "priority", "size", "risk", "qa_required", "merge_outcome", "primary_signal", "acceptance", "owner_layer", "conflict_keys", "touch_points", "dependencies", "integration_order", "validation", "reviewers", "human_gates", "out_of_scope"],
+      "properties": {
+        "plan_item_id": { "$ref": "#/$defs/plan_item_id" },
+        "parent_plan_item_id": { "$ref": "#/$defs/plan_item_id" },
+        "title": { "type": "string", "minLength": 1 },
+        "work_type": { "enum": ["Task", "Bug", "Docs", "Automation", "Refactor"] },
+        "priority": { "enum": ["P0", "P1", "P2", "P3"] },
+        "size": { "enum": ["XS", "S", "M"] },
+        "risk": { "enum": ["Low", "Medium", "High"] },
+        "qa_required": { "enum": ["Yes", "No"] },
+        "merge_outcome": { "type": "string", "minLength": 1 },
+        "primary_signal": { "type": "string", "minLength": 1 },
+        "acceptance": { "type": "array", "minItems": 3, "maxItems": 5, "items": { "type": "string", "minLength": 1 } },
+        "owner_layer": { "type": "string", "minLength": 1 },
+        "conflict_keys": { "$ref": "#/$defs/conflict_keys" },
+        "touch_points": { "$ref": "#/$defs/string_list" },
+        "dependencies": { "type": "array", "items": { "$ref": "#/$defs/plan_item_id" } },
+        "integration_order": { "type": "integer", "minimum": 1 },
+        "validation": {
+          "type": "object",
+          "required": ["targeted", "full", "integration"],
+          "properties": {
+            "targeted": { "$ref": "#/$defs/string_list" },
+            "full": { "$ref": "#/$defs/string_list" },
+            "integration": { "$ref": "#/$defs/string_list" }
+          },
+          "additionalProperties": false
+        },
+        "reviewers": { "$ref": "#/$defs/string_list" },
+        "human_gates": { "$ref": "#/$defs/string_list" },
+        "out_of_scope": { "$ref": "#/$defs/string_list" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

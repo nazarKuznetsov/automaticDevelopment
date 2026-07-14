@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Orchestrator State and Handoff Packet v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "wave_id", "state", "launch_count", "heartbeat", "claims", "workers", "attempts", "handoff"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "orchestrator_state_handoff" },
+    "wave_id": { "type": "string", "minLength": 1 },
+    "state": { "enum": ["ACTIVE", "DRAINING", "WAITING_FOR_HUMAN", "COMPLETE"] },
+    "launch_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "heartbeat": {
+      "type": "object",
+      "required": ["status", "schedule_id", "missed"],
+      "properties": {
+        "status": { "enum": ["ACTIVE", "PAUSED", "UNAVAILABLE"] },
+        "schedule_id": { "type": ["string", "null"], "pattern": "^(?!/)" },
+        "missed": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "claims": { "type": "array" },
+    "workers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["issue", "task_state", "task_id", "branch", "pr", "head_sha"],
+        "properties": {
+          "issue": { "type": "integer", "minimum": 1 },
+          "task_state": { "enum": ["CREATING", "LAUNCHED", "BLOCKED", "DONE", "ARCHIVED"] },
+          "task_id": { "type": ["string", "null"], "pattern": "^(?!/)" },
+          "branch": { "type": ["string", "null"] },
+          "pr": { "type": ["integer", "null"], "minimum": 1 },
+          "head_sha": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "attempts": { "type": "array" },
+    "handoff": {
+      "type": "object",
+      "required": ["status", "replacement_task_id", "takeover_readback"],
+      "properties": {
+        "status": { "enum": ["NOT_REQUIRED", "REQUESTED", "ACCEPTED"] },
+        "replacement_task_id": { "type": ["string", "null"], "pattern": "^(?!/)" },
+        "takeover_readback": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

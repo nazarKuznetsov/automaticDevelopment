@@ -1,88 +1,71 @@
-# AGENTS.md
+# Codex Lifecycle Workflow v2
 
-## GitHub-native Agent Workflow
+GitHub Issues, native sub-issues/dependencies, Project v2, PRs, Actions, and comments are the durable ledger. Codex tasks and worktrees are execution surfaces, not state storage.
 
-This repository uses a GitHub-native Codex workflow. GitHub Issues, GitHub Project v2, labels, pull requests, Actions, and issue comments are the durable source of truth.
+Read `docs/product/canonical.md`, `.codex/agent-workflow.json`, and `docs/guide/quickstart.md` before workflow actions.
 
-Use these roles:
+## Lifecycle and authority
 
-- Planner: audits the repository, prepares the Project Intake Packet, GitHub Setup Packet, issue drafts, and process improvements.
-- Orchestrator: runs the queue, applies setup, claims ready issues, creates Worker packets, tracks state, verifies evidence, and performs handoff.
-- Worker: delivers exactly one ready GitHub Issue through one branch and one pull request.
+Phases are Discovery, Planning, Design, Foundation, MVP, Stabilization, Production, and Growth. Non-UI Foundation may overlap Design, but no MVP UI leaf becomes Ready before the Design Readiness gate passes.
 
-## Autonomy
+Humans approve the Canonical Brief, global roadmap, every wave/phase entry and exit, high-risk decisions, and the exact PR/head SHA for every merge. After that exact authorization, Orchestrator may execute the merge. Low/Medium leaf work inside an approved wave may run autonomously.
 
-Default mode is mostly autonomous with conservative human gates.
+## Roles
 
-The Orchestrator may create issues, labels, project state, Worker packets, Worker threads or worktrees, branches, pull requests, comments, and handoff records when tools and permissions allow it.
+- `$project-brainstorm` creates the Canonical Brief and no backlog.
+- `$github-project-planner` plans all phases and only the current executable wave.
+- `$github-agent-orchestrator` executes approved Ready work and triages Finding Packets.
+- `$github-agent-worker` delivers one leaf Issue with TDD and independent evidence.
+- `$github-pre-pr-reviewer` independently decides admission for one exact SHA.
 
-The Orchestrator must stop and request explicit human approval for:
+Use project agents `planner`, `reviewer`, `qa`, `admission-reviewer`, `security-reviewer`, and `design-reviewer` only within their declared boundaries. Planner, reviewer, security, and admission use high reasoning; QA/design default to medium and may be raised when risk justifies it. Do not pin model slugs.
 
-- merge;
-- deploy or release;
-- secrets, tokens, credentials, or key rotation;
-- billing or paid infrastructure changes;
-- destructive commands or data deletion;
-- production data access or modification;
-- migrations;
-- auth, permissions, public API, or security-sensitive behavior;
-- adding production dependencies.
+## Evidence and truthfulness
 
-## GitHub Project v2 Contract
+- Label material statements as observed, inferred, planned, or unknown when the distinction is not obvious.
+- Never invent repository state, tool availability, model availability, commands, test results, approvals, URLs, IDs, SHAs, task/worktree creation, or GitHub mutations.
+- A write is complete only after the tool returns a canonical identifier and a read-after-write check confirms the intended state. Until then, report it as planned or failed.
+- A capability is available only when its tool is present and a non-mutating probe succeeds. Owner type, documentation, or memory alone is not proof that Issue Types, merge queue, task creation, worktrees, scheduling, or another optional feature is enabled.
+- `Independent` means a distinct agent task or a named human who inspects the exact SHA. Worker, reviewer, QA, and admission identities must differ. The Worker cannot role-play another role.
+- Evidence must be traceable to an exact command/result, GitHub URL/ID, artifact, or human decision. Agent-authored prose is not proof of an external event.
+- When verification is impossible, fail closed with `unknown` or `blocked` and use the documented fallback; never fill a gap with a plausible value.
 
-Required fields:
+## GitHub model
 
-- `Status`: Intake, Ready, In Progress, Review, Blocked, Done.
-- `Work Type`: Guide, Template, Automation, Site, Docs, Feature, Bug, Refactor.
-- `Risk`: Low, Medium, High.
-- `QA Required`: Yes, No.
+Hierarchy is at most `Epic → Capability/Module → Deliverable → Task/Bug`. In the portable Work Type field, `Capability` also represents Module, while `Task` represents either a parent Deliverable or a leaf Task. Native sub-issue state—not the word “Task”—decides whether work is a leaf. Only a leaf Issue sized XS–M may have `agent-ready`, a Worker, branch, or PR. Native sub-issues and dependencies are authoritative.
 
-Required labels:
+Leaf state is `Backlog → Ready → In Progress → Validation → Review → Done`. `Blocked` is reachable from active states; `Canceled` is terminal. Review requires an existing PR; PR creation requires Validation PASS. Done requires merge readback and successful post-merge CI.
 
-- `agent-ready`
-- `blocked`
-- `qa-required`
-- `security-review`
-- `design-review`
-- `docs`
-- `automation`
-- `workflow`
-- `human-action-required`
+Project fields and values come from `.codex/agent-workflow.json`. Use Work Type as the portable fallback even when organization Issue Types exist.
 
-Ready filter:
+## Execution
 
-```text
-Project Status = Ready
-label:agent-ready
-no open blockers
-```
+- Start one fresh top-level Orchestrator task per approved wave.
+- Keep no more than two write Workers active, and only when their `conflict_keys` are disjoint.
+- Use one fresh top-level Codex task and managed worktree per leaf Issue. Never fork Orchestrator history into a Worker.
+- Use one `agent/<issue>-<slug>` branch and one PR per Issue.
+- Keep one tracked-file write owner. Allow at most two active direct Worker subagents and depth one; QA is non-authoring.
+- If managed task/worktree isolation is unavailable, run one write Worker and use read-only siblings or return a manual launch prompt; never simulate parallel isolation.
+- A launch counts only after canonical task/worktree readback. Stop after five launches and complete audited handoff before retiring.
+- Run a 20-minute heartbeat only while executable work is active.
+- Never publish absolute local worktree paths in GitHub.
 
-## Orchestrator Rules
+## TDD and findings
 
-- Never launch work from memory. Re-read the issue, labels, project fields, blockers, comments, linked PRs, and repository state on every heartbeat.
-- Max active workers: 2.
-- Max worker launches per Orchestrator: 5.
-- Write a State Ledger Comment before launching a Worker.
-- Do not launch a Worker if the issue is already claimed, blocked, missing readiness fields, or has an open linked PR.
-- Move to `DRAINING` after the fifth Worker launch.
-- Become `RETIRED` only after a replacement Orchestrator writes `handoff accepted`.
+Use RED → GREEN → refactor for behavior. Only docs/config work with unchanged behavior may use a recorded exemption.
 
-## Worker Rules
+Workers never create Issues. They return a Finding Packet. Orchestrator deduplicates, returns in-scope fixes, creates proven independent Low/Medium Bug sub-issues, and escalates High/security/data/migration/product ambiguity to a human.
 
-- One GitHub Issue maps to one Worker branch and one pull request.
-- Use an isolated Codex worktree when available.
-- Branch names should include the issue number, for example `feat/123-short-slug`, `fix/123-short-slug`, `docs/123-short-slug`, or `chore/123-short-slug`.
-- The PR must include `Closes #<issue-number>`.
-- The PR and issue must include validation evidence before Review.
-- Do not bundle unrelated changes.
+## Pre-PR admission
 
-## Validation
+No PR creation tool may run until all acceptance, TDD/exemption, targeted/full/integration validation, separate clean QA/gate tracked-tree evidence, authoritative fresh remote base, independent reviewer/QA/admission, conditional design/security/high-risk review, branch CI for current SHA, dependency, baseline, documentation, rollout, and human-gate checks pass.
 
-Run the smallest meaningful validation for the changed surface. If the issue defines validation commands, run those commands and record exact results in the PR and Worker Completion Report.
+Run `.codex/scripts/pre-pr-gate.mjs --evidence <json>`. The generated marker is commit-bound and must remain untracked. Codex PreToolUse hooks are defense-in-depth, not the sole enforcement boundary.
 
-If validation cannot run, explain why, provide the best substitute signal, and leave the issue in Review or Blocked according to the risk.
+After a new commit or base advance, prior review, QA, admission, and merge authorization are invalid. After post-PR failure or requested changes, convert the PR to Draft, return the Issue to In Progress, and reuse the same task/branch/PR. Automatic low-risk merge is disabled: Orchestrator merges only after exact human PR/SHA authorization and fresh readback.
 
-## Human Action Required
+After two failed attempts on one signal, change approach or add a specialist. On the third repetition, set Blocked and request human action.
 
-When tools, permissions, data, or safety gates block progress, write a precise `Human action required` block to the GitHub Issue and report it in the Codex thread. Include exact commands, URLs, issue bodies, labels, project fields, and the reason automation stopped.
+## Safety
 
+Never expose secrets or weaken auth/validation. Require explicit human approval for deploy/release, production data, destructive operations, billing, secrets, migrations, auth/permissions/public API changes, production dependencies, and other high-risk work.

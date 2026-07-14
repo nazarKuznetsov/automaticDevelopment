@@ -1,133 +1,48 @@
 ---
 name: github-agent-worker
-description: Use when Codex must deliver exactly one ready GitHub Issue from a GitHub-native Orchestrator Worker Packet through one isolated worktree or branch, one pull request, validation evidence, and a Worker Completion Report.
+description: Deliver exactly one approved Ready GitHub leaf Issue as the sole tracked-file author in one fresh top-level Codex task, managed worktree, agent/* branch, and pull request using TDD, surface verification, bounded fresh review subagents, branch CI, and exact-SHA admission. Use only from a verified Worker Packet; never merge, create Issues, or expand scope.
 ---
 
 # GitHub Agent Worker
 
-## Overview
+Read `AGENTS.md`, the raw Issue, Worker Packet, canonical contract links, `.codex/agent-workflow.json`, current branch/PR state, and [references/worker-runtime.md](references/worker-runtime.md). Do not rely on an Orchestrator chat summary.
 
-Deliver exactly one GitHub Issue. Do not expand scope, create extra PRs, or change unrelated files.
+## Start and Surface Gate
 
-Before acting, read `AGENTS.md`, `docs/github-agent-workflow.md`, the assigned issue, comments, labels, Project fields, linked PRs, and the Worker Packet.
+Before any tracked write, verify Ready leaf state, claim, managed worktree, branch, `base_sha_at_launch`, acceptance, owner layer, conflict keys, touch points, dependencies, validation, reviewers, and gates. Trace the owner layer vertically and coupled surfaces horizontally.
 
-## Required Invariants
+If the observed owner layer or surface adds a conflict key/touch point, stop before writing and return a Surface Update Packet. Never silently broaden the branch.
 
-- One issue.
-- One branch.
-- One pull request.
-- `Closes #<issue-number>` in the PR.
-- Validation evidence in the PR and issue.
-- No merge, deploy, secrets, billing, destructive ops, production data, migrations, auth/permissions/public API changes, or production dependency changes without explicit human approval.
+You are the single tracked-file write owner. QA and review agents may create only disposable scratch/ignored artifacts. Reject tracked changes from any other agent.
 
-## Start Gate
+## TDD Delivery
 
-Do not edit files until all are true:
+1. Reproduce the missing behavior.
+2. Add the highest-value supported failing test and record RED.
+3. Implement the smallest coherent owner-layer change and record GREEN.
+4. Refactor without weakening the signal.
+5. Run exact targeted, full, and integration validation.
+6. Validate the primary user-visible/runtime signal and documentation/rollout implications.
 
-- Project `Status = Ready`;
-- label `agent-ready`;
-- no `blocked` label;
-- no unresolved blocker;
-- Worker Packet issue number matches the GitHub Issue;
-- no open linked PR already owns this issue;
-- validation expectations are clear.
+Use a recorded docs/config exemption only when behavior is unchanged.
 
-If the gate fails, stop and write `Human action required` or return the exact missing readiness item.
+## Findings and Review
 
-## Delivery Loop
+Do not create a Bug Issue. Return the complete Finding Packet from [references/worker-runtime.md](references/worker-runtime.md).
 
-1. Confirm repository state and active instructions.
-2. Create or use an isolated Codex worktree when available.
-3. Create an issue-linked branch such as `feat/123-short-slug`, `fix/123-short-slug`, `docs/123-short-slug`, or `chore/123-short-slug`.
-4. Trace the owner layer before changes: caller, route, component, service, schema, tests, and docs as relevant.
-5. For behavior changes, use TDD RED/GREEN. For docs/config-only work, record the exemption before editing.
-6. Implement the smallest coherent change that satisfies the issue.
-7. Run the issue's primary validation command and nearest cheap secondary checks.
-8. Fill the pull request template with evidence.
-9. Open one PR with `Closes #<issue-number>`.
-10. Post Worker Completion Report to the issue.
+For Low/Medium work, use fresh minimal-context direct subagents at depth one, with at most two active simultaneously:
 
-## Scope Discipline
+- reviewer: read-only correctness/test review;
+- QA: non-authoring reproduction and primary-signal evidence;
+- admission-reviewer: distinct final audit using `$github-pre-pr-reviewer`;
+- design/security: conditional.
 
-Stop and ask Orchestrator for decomposition when the issue:
+Give each raw Issue, Worker Packet, diff, exact SHA, and CI evidence without Worker conclusions. IDs must be distinct. High/security/auth/data/migration review is requested from Orchestrator as a separate top-level task.
 
-- contains multiple independent PR-sized changes;
-- requires a blocked human gate;
-- needs missing product decisions;
-- needs permissions or credentials not available;
-- cannot be validated with repository tooling;
-- conflicts with active work or an existing PR.
+After every commit, invalidate earlier CI/review/QA/admission. Before admission, compare the current default-branch SHA with the last `validated_base_sha`. Synchronize the branch and repeat all evidence if it changed; keep `base_sha_at_launch` immutable and record the synchronized revision as the new `validated_base_sha`. Verify tracked diff is unchanged before/after QA.
 
-## Worker Completion Report
+## PR and Lifecycle
 
-Use this format:
+The admission-reviewer authors the independent evidence; the Worker only runs `.codex/scripts/pre-pr-gate.mjs --evidence <path>`. Create one PR only after gate PASS for current HEAD and no owning PR. The hook is defense-in-depth.
 
-```md
-## Worker Completion Report
-
-Issue: #<number>
-PR: <url>
-Branch: <branch>
-
-Acceptance:
-- <criterion>: met/not met + evidence
-
-TDD RED/GREEN:
-- RED:
-- GREEN:
-- Refactor:
-- Exemption:
-
-Repository tracing:
-- Owner layer:
-- Files inspected:
-- Contract/API impact:
-
-Validation:
-- Primary signal status:
-- Secondary signal status:
-- Commands:
-
-Security / design:
-- Security impact:
-- UI/design impact:
-
-QA:
-- Evidence:
-- Findings resolved:
-- Remaining risk:
-
-Human Gates:
-- Required before merge/deploy/release:
-```
-
-## PR Evidence
-
-The PR must include:
-
-- linked issue;
-- what changed;
-- acceptance evidence;
-- validation commands and results;
-- TDD RED/GREEN or exemption;
-- repository tracing;
-- security/design notes;
-- QA evidence or no-QA rationale;
-- risks and rollout notes;
-- human gates that still apply.
-
-## Human Action Required
-
-Use this exact shape when blocked:
-
-```md
-## Human action required
-
-Blocked action:
-Reason:
-Issue:
-Required human decision:
-Exact command or URL:
-Exact labels / Project fields / issue body:
-Safe to continue after:
-```
+Never merge. Keep this Worker task available after PR creation. On requested changes or failing PR checks, convert the same PR to Draft, return the Issue to In Progress, and continue in the same task/branch/PR. Archive only after Orchestrator confirms merge, post-merge CI, and Done.

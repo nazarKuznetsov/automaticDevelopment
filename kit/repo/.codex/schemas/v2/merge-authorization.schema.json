@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Merge Authorization Packet v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "status", "human_identity", "repository", "pr", "head_sha", "base_sha", "admission_report_url", "admission_report_digest", "authorized_at", "valid_until"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "merge_authorization" },
+    "status": { "const": "APPROVED" },
+    "human_identity": { "type": "string", "minLength": 1 },
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "pr": { "type": "integer", "minimum": 1 },
+    "head_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "admission_report_url": { "type": "string", "format": "uri" },
+    "admission_report_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "authorized_at": { "type": "string", "format": "date-time" },
+    "valid_until": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

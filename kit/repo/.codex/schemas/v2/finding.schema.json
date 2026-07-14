@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Finding Packet v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "source_task_id", "source_issue", "commit_sha", "summary", "reproduction", "failure_signature", "severity", "within_scope", "affects_acceptance", "affected_acceptance_ids", "security", "data_risk", "migration_risk", "product_ambiguity", "evidence", "duplicate_search_evidence"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "finding" },
+    "source_task_id": { "type": "string", "minLength": 1, "pattern": "^(?!/)" },
+    "source_issue": { "type": "integer", "minimum": 1 },
+    "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "summary": { "type": "string", "minLength": 1 },
+    "reproduction": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "failure_signature": { "type": "string", "minLength": 1 },
+    "severity": { "enum": ["Low", "Medium", "High"] },
+    "within_scope": { "type": "boolean" },
+    "affects_acceptance": { "type": "boolean" },
+    "affected_acceptance_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "security": { "type": "boolean" },
+    "data_risk": { "type": "boolean" },
+    "migration_risk": { "type": "boolean" },
+    "product_ambiguity": { "type": "boolean" },
+    "evidence": { "type": "array", "minItems": 1 },
+    "duplicate_search_evidence": {
+      "type": "object",
+      "required": ["query", "lookback_days", "matches"],
+      "properties": {
+        "query": { "type": "string", "minLength": 1 },
+        "lookback_days": { "type": "integer", "minimum": 1 },
+        "matches": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "suggested_boundary": { "type": "string" }
+  },
+  "additionalProperties": false
+}

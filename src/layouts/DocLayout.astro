@@ -1,0 +1,65 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  slug: string;
+  docs: Array<{ title: string; slug: string }>;
+}
+
+const { title, description, slug, docs } = Astro.props;
+const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const repoUrl = "https://github.com/nazarKuznetsov/automaticDevelopment";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0b0f17" />
+    <title>{title} · Codex Automation Guide</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href={base} aria-label="Codex Automation Guide home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span><strong>Codex Automation</strong><small>Workflow schema v2</small></span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href={`${base}docs/quickstart/`}>Guide</a>
+        <a href={repoUrl}>GitHub</a>
+      </nav>
+    </header>
+
+    <div class="docs-shell">
+      <aside class="docs-nav" aria-label="Guide navigation">
+        <a class="docs-home" href={base}>← Overview</a>
+        <p>Lifecycle guide</p>
+        <nav>
+          {docs.map((doc) => (
+            <a class:list={[doc.slug === slug && "active"]} href={`${base}docs/${doc.slug}/`}>
+              {doc.title}
+            </a>
+          ))}
+        </nav>
+      </aside>
+
+      <main class="docs-main">
+        <article class="prose">
+          <slot />
+        </article>
+        <footer class="docs-footer">
+          <span>Canonical source: kit/repo/docs/guide/{slug}.md</span>
+          <a href={`${repoUrl}/blob/main/kit/repo/docs/guide/${slug}.md`}>View source</a>
+        </footer>
+      </main>
+    </div>
+
+    <script>
+      import "../scripts/copy-code.ts";
+    </script>
+  </body>
+</html>

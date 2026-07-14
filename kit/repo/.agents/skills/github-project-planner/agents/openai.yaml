@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Project Planner"
+  short_description: "Plan stable Issue waves without GitHub writes"
+  default_prompt: "Use $github-project-planner in a fresh read-only task to produce the lifecycle roadmap and one revision-bound executable Issue wave."

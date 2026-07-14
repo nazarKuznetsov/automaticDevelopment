@@ -1,0 +1,83 @@
+{
+  "schema_version": 2,
+  "kit_version": "2.0.0",
+  "configured": false,
+  "github": {
+    "repository": "",
+    "owner_type": "personal",
+    "project_owner": "",
+    "project_number": 0,
+    "default_branch": "main",
+    "organization_capabilities": {
+      "issue_types": false,
+      "merge_queue": false
+    }
+  },
+  "project": {
+    "status": ["Backlog", "Ready", "In Progress", "Validation", "Blocked", "Review", "Done", "Canceled"],
+    "phase": ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"],
+    "work_type": ["Epic", "Capability", "Task", "Bug", "Docs", "Automation", "Refactor"],
+    "priority": ["P0", "P1", "P2", "P3"],
+    "size": ["XS", "S", "M", "L", "XL"],
+    "risk": ["Low", "Medium", "High"],
+    "qa_required": ["Yes", "No"]
+  },
+  "validation": {
+    "targeted": [],
+    "full": [],
+    "integration": [],
+    "visual": [],
+    "branch_ci_workflow": "agent-branch-validation.yml"
+  },
+  "execution": {
+    "orchestrator_scope": "wave",
+    "task_strategy": "fresh_top_level_per_leaf",
+    "worker_environment": "managed_worktree",
+    "forbid_worker_fork": true,
+    "branch_pattern": "agent/{issue}-{slug}",
+    "max_workers": 2,
+    "max_launches_per_orchestrator": 5,
+    "wave_limit": 5,
+    "single_write_owner": true,
+    "parallelism_policy": "disjoint_conflict_keys",
+    "subagent_max_depth": 1,
+    "max_active_subagents_per_worker": 2,
+    "claim_stale_after_missed_heartbeats": 3,
+    "archive_worker_after": "post_merge_done",
+    "duplicate_lookback_days": 90,
+    "heartbeat_minutes": 20,
+    "pause_heartbeat_when_idle": true,
+    "pause_heartbeat_when_waiting_for_human": true
+  },
+  "worktree": {
+    "setup_commands": [],
+    "required_paths": [],
+    "copy_ignored_files": false
+  },
+  "merge": {
+    "mode": "human_approval_then_orchestrator",
+    "approval_binding": "pr_and_head_sha",
+    "require_fresh_base": true,
+    "automatic_low_risk_merge": false
+  },
+  "baseline_policy": {
+    "allow_legacy_failures": true,
+    "require_bug_issue": true,
+    "require_pre_existing_evidence": true,
+    "allow_new_failures": false,
+    "allow_affected_failures": false
+  },
+  "gates": {
+    "canonical_brief_approval": true,
+    "roadmap_approval": true,
+    "phase_entry_approval": true,
+    "phase_exit_approval": true,
+    "high_risk_approval": true,
+    "human_merge_authorization": true,
+    "pre_pr_admission": true,
+    "reviewer": true,
+    "qa": true,
+    "conditional_design_review": true,
+    "conditional_security_review": true
+  }
+}

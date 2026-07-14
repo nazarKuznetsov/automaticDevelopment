@@ -2,59 +2,64 @@
 
 Closes #
 
-## What Changed
+## Change and Owner Layer
 
--
+- Plan item ID:
+- Outcome:
+- Owner layer:
+- Conflict keys:
+- Base SHA at Worker launch:
+- Validated/current base SHA:
+- Coupled contracts checked:
 
-## Acceptance Evidence
+## Acceptance and TDD
 
-- [ ] Criterion:
-- [ ] Evidence:
-
-## TDD RED/GREEN
-
+- [ ] Every acceptance criterion has evidence.
 - RED:
 - GREEN:
-- Refactor:
-- Exemption:
-
-## Repository Tracing
-
-- Owner layer:
-- Files inspected:
-- Contract/API impact:
+- Refactor or allowed exemption:
 
 ## Validation
 
-- Primary signal status:
-- Secondary signal status:
-- Commands and results:
+- Primary signal status: met / not met / partially validated
+- Targeted commands/results:
+- Full commands/results:
+- Integration commands/results:
+- Branch CI run and commit SHA:
+- Tracked tree before/after QA: clean / dirty
+- Tracked tree before/after deterministic gate: clean / dirty
 
-## Security / Design
+## Independent Review
 
-- Security impact:
-- UI/design impact:
-- Required review:
+- Reviewer: PASS / FAIL
+- QA: PASS / FAIL
+- Admission reviewer ID: PASS / FAIL
+- Design: PASS / NOT_REQUIRED / FAIL
+- Security: PASS / NOT_REQUIRED / FAIL
 
-## QA Evidence
+## Pre-PR Admission
 
-- QA required: Yes / No
-- Evidence:
-- Remaining risk:
+- Report: PASS
+- Report commit SHA:
+- Report base SHA / current base SHA:
+- Blocking dependencies: clear
+- Baseline regressions: none
+- Legacy baseline Bug links:
 
-## Worker Completion Report
+## Documentation and Rollout
 
-Issue:
-PR:
-Branch:
-
-Acceptance:
--
-
-Validation:
--
+- Documentation: updated / not needed / needs alignment
+- Migration / rollout implications:
+- Remaining risks:
 
 ## Human Gates
 
-This PR must not be merged, deployed, released, or used for migrations, secrets, billing, destructive ops, production data, auth/permissions, public API, or production dependency changes without explicit human approval.
+- [ ] Human Merge Authorization binds repository, this PR, current head/base SHA, and the admission report digest.
+- [ ] Orchestrator must re-read checks, dependencies, threads, admission, and base before merge.
+- [ ] Done/archive waits for canonical merge commit readback and post-merge CI bound to that commit.
+- Additional gates:
 
+## Worker Completion Report
+
+- Issue comment link:
+- Finding Packets resolved:

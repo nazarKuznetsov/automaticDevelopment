@@ -1,0 +1,18 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+
+export function getStaticPaths() {
+  const pages = Object.values(import.meta.glob("../../../kit/repo/docs/guide/*.md", { eager: true }))
+    .map((module: any) => ({ ...module.frontmatter, Content: module.Content }))
+    .sort((left, right) => left.order - right.order);
+
+  return pages.map((page) => ({ params: { slug: page.slug }, props: { page, docs: pages } }));
+}
+
+const { page, docs: allDocs } = Astro.props;
+const Content = page.Content;
+---
+
+<DocLayout title={page.title} description={page.description} slug={page.slug} docs={allDocs}>
+  <Content />
+</DocLayout>
