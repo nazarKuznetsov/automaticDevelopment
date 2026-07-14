@@ -41,12 +41,13 @@ An unchanged kit-origin file can update safely. A locally modified file produces
 ## Configure the target
 
 1. Complete and approve `docs/product/canonical.md`.
-2. Fill `.codex/agent-workflow.json` with repository/Project metadata and real validation commands; set `configured: true` only after verifying them.
+2. Fill `.codex/agent-workflow.json` with repository/Project metadata and real targeted/full/integration validation commands; set `configured: true` only after verifying them. Keep device IDs, task IDs, worktree paths, tokens, and secrets out.
 3. Create Project fields and labels described in `docs/guide/github-model.md`.
 4. Review and trust `.codex/hooks.json` with Codex `/hooks`.
 5. Configure ruleset required checks and human review.
-6. Use `$github-project-planner` to propose the roadmap/current wave, then approve it.
-7. Use `$github-agent-orchestrator` to execute only the approved Ready wave.
+6. Save the repository as a Codex project and probe fresh top-level managed-worktree task creation; do not use `fork_thread` for Workers.
+7. Use `$github-project-planner` in a fresh read-only task to propose a revision-bound roadmap/current wave, then approve it.
+8. Use a fresh `$github-agent-orchestrator` task with an approved Start Packet to materialize and execute only that wave.
 
 For a repository that already used workflow v1, do not follow new-project bootstrap blindly. Use [Existing Products](kit/repo/docs/guide/existing-products.md) to drain v1 work, reconcile managed/host collisions, migrate the existing Project in place, establish a SHA-bound baseline, and invoke Planner in continuation mode.
 
@@ -55,10 +56,11 @@ For a repository that already used workflow v1, do not follow new-project bootst
 ```bash
 node .codex/scripts/run-validation.mjs --scope targeted
 node .codex/scripts/run-validation.mjs --scope full
+node .codex/scripts/run-validation.mjs --scope integration
 ```
 
 Do not add `agent-ready` until the Issue is an unblocked XS–M leaf with complete form values and Project Status Ready.
 
 ## Live pilot
 
-The pilot is intentionally not part of install. After a separate explicit approval, use one Low-risk Issue to prove: failing branch CI creates no PR; fixed CI plus independent review/QA and admission PASS creates exactly one PR; merge remains human-controlled.
+The pilot is intentionally not part of install. After separate approval, use one Low-risk Issue to prove: real fresh Worker task/worktree readback; zero PRs on failing branch CI; fixed CI plus distinct reviewer/QA/admission produces one PR; human authorizes repository/PR/head/base/admission digest; Orchestrator merges; merge-commit-bound post-merge CI gates Done/archive.

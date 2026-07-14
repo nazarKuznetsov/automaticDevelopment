@@ -34,12 +34,12 @@ Backlog → Ready → In Progress → Validation → Review → Done
 Canceled is terminal
 ```
 
-Review requires an existing PR. PR creation requires Validation and a SHA-bound Admission PASS. `Blocked` is for a real unresolved dependency or human decision, not ordinary implementation difficulty.
+Review requires an existing PR. PR creation requires Validation and a head/base-SHA-bound Admission PASS. Review remains until merge readback and post-merge CI PASS; only then is Done valid. `Blocked` is for a real unresolved dependency or human decision, not ordinary implementation difficulty.
 
 ## Labels and automation
 
 Required workflow labels include `agent-ready`, `blocked`, `qa-required`, `security-review`, `design-review`, `human-action-required`, `docs`, `automation`, and `workflow`.
 
-Readiness Action validates substantive Issue Form values and enums, requires three to five acceptance checks, rejects Epic/Capability and L/XL work, fails closed when native leaf state cannot be queried, removes invalid `agent-ready`, and updates one idempotent audit comment. Orchestrator separately verifies Project Status, native dependencies, claims, and owning PRs; the Action therefore needs no PAT for a user-owned Project.
+Readiness Action validates substantive Issue Form values and enums, including stable Plan Item ID, Priority, merge outcome, owner layer, conflict keys, touch points, integration validation/order, reviewers, and out-of-scope. It requires three to five acceptance checks, rejects Epic/Capability and L/XL work, fails closed when native leaf state cannot be queried, removes invalid `agent-ready`, and updates one idempotent audit comment. Orchestrator separately verifies Project Status, native dependencies, claims, and owning PRs; the Action therefore needs no PAT for a user-owned Project.
 
-Configure branch [rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets) to require branch/PR checks, resolved review threads, and human approval. Merge queue remains an optional organization capability.
+Configure branch [rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets) to require branch/PR checks, resolved review threads, and human approval. The human records the exact PR/head SHA; Orchestrator executes the verified merge. Merge queue remains an optional organization capability.

@@ -24,7 +24,7 @@ Non-UI Foundation may proceed in parallel with Design when it cannot constrain a
 
 ## Human control points
 
-Humans approve the Canonical Brief, global roadmap, phase entry, phase exit, high-risk/security/data/migration/product decisions, release/deploy, and every merge. Routine Low/Medium XS–M leaf Issues inside an approved phase run autonomously.
+Humans approve the Canonical Brief, global roadmap/current wave revision, phase entry, phase exit, high-risk/security/data/migration/product decisions, release/deploy, and the exact PR/head SHA for every merge. Routine Low/Medium XS–M leaves inside an approved wave run autonomously. Orchestrator may execute only the exact authorized merge.
 
 Phase approval is evidence, not a meeting. Record the approved revision, approver, timestamp, entry/exit criteria, accepted risks, and next phase in GitHub or the relevant packet.
 

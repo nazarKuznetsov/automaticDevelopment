@@ -1,4 +1,4 @@
 interface:
   display_name: "Project Brainstorm"
-  short_description: "Turn a rough idea into a canonical brief"
-  default_prompt: "Use $project-brainstorm to turn this product idea into a Canonical Brief Packet without creating backlog."
+  short_description: "Draft an approval-ready product contract"
+  default_prompt: "Use $project-brainstorm in a fresh read-only task to turn this product idea into an approval-ready Canonical Brief without creating backlog."

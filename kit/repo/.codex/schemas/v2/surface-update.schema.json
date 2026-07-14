@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Surface Update Packet v2",
+  "type": "object",
+  "required": ["schema_version", "packet_type", "source_task_id", "issue", "base_sha_at_launch", "observed_owner_layer", "added_conflict_keys", "added_touch_points", "write_started", "evidence"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "packet_type": { "const": "surface_update" },
+    "source_task_id": { "type": "string", "minLength": 1, "pattern": "^(?!/)" },
+    "issue": { "type": "integer", "minimum": 1 },
+    "base_sha_at_launch": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "observed_owner_layer": { "type": "string", "minLength": 1 },
+    "added_conflict_keys": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "added_touch_points": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "write_started": { "const": false },
+    "evidence": { "type": "array", "minItems": 1 }
+  },
+  "additionalProperties": false
+}

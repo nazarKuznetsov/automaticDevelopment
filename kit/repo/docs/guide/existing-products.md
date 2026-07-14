@@ -13,7 +13,7 @@ An existing product does not restart at Discovery by default. Treat adoption as 
 
 Before changing workflow files:
 
-1. stop new v1 Worker launches and let active write Workers finish or record a handoff;
+1. stop new v1 Worker launches and wait for a safe boundary with no active v1 write Worker; if work cannot finish, record a verified handoff and do not start v2 writers yet;
 2. record the default-branch SHA, open branches/PRs, active Issues, current Project fields/views, and unresolved human decisions;
 3. identify the existing product contract, design evidence, validation commands, CI workflows, release/operations docs, and legacy failures;
 4. label every observation with a URL, ID, path, or SHA. Unknown Project or repository state remains unknown until queried.
@@ -62,6 +62,8 @@ Preserve the existing Project and its history unless a human explicitly chooses 
 
 Read fields/items back after every mutation. Add native hierarchy and dependencies for remaining/open work; do not manufacture historical Issues solely to retrofit completed work into a perfect tree.
 
+Add stable `plan_item_id`, merge outcome, primary signal, owner layer, conflict keys, expected touch points, integration order/validation, reviewers, human gates, and out-of-scope only to active/future work that may execute. Do not rewrite closed history solely to populate the new form.
+
 ## 5. Establish phase and baseline
 
 Determine the current phase from evidence rather than repository age. Foundation may already be complete while MVP remains active; an operational product may enter Stabilization, Production, or Growth. Record phase-entry approval before opening a v2 wave.
@@ -77,17 +79,17 @@ Use continuation planning after the migration PR merges.
 ### Existing product continuation — EN
 
 ```text
-Use $github-project-planner in continuation mode for <owner/repo>. This repository already used workflow v1 and has now migrated to workflow schema v2. Read the approved canonical contract, current code, verified Project fields/items, open and recently closed Issues, merged/open PRs, baseline evidence, phase reports, and latest handoff. Do not repeat Discovery, recreate completed work, create a new Project, or mutate GitHub yet. Return an observed/inferred/planned/unknown migration audit, the current phase with required approval, a refreshed global roadmap, and the next wave of at most five unblocked XS–M leaf Issues with native hierarchy/dependencies.
+Use $github-project-planner in continuation mode in a fresh read-only task for <owner/repo>. This repository already used workflow v1 and has now migrated to workflow schema v2. Read the approved canonical contract, current code, verified Project fields/items, open and recently closed Issues, merged/open PRs, baseline evidence, phase reports, and latest accepted handoff. Do not repeat Discovery, recreate completed work, create a new Project, copy the old Planner chat, or mutate GitHub. Preserve/assign stable plan_item_id values and return an observed/inferred/planned/unknown migration audit, current phase approval, refreshed roadmap, and at most five complete unblocked XS–M merge units with native hierarchy/dependencies, owner layers, conflict keys, integration validation, reviewers, and gates.
 ```
 
 ### Продолжение существующего продукта — RU
 
 ```text
-Используй $github-project-planner в continuation mode для <owner/repo>. Этот репозиторий уже работал по workflow v1 и теперь мигрирован на workflow schema v2. Прочитай утверждённый canonical contract, текущий код, проверенные поля/items Project, открытые и недавно закрытые Issues, merged/open PRs, baseline evidence, phase reports и последний handoff. Не повторяй Discovery, не пересоздавай завершённую работу, не создавай новый Project и пока не изменяй GitHub. Верни migration audit со статусами observed/inferred/planned/unknown, текущую фазу и нужное утверждение, обновлённый global roadmap и следующую wave максимум из пяти незаблокированных leaf Issues размера XS–M с native hierarchy/dependencies.
+Используй $github-project-planner в continuation mode в новой read-only task для <owner/repo>. Этот репозиторий уже работал по workflow v1 и теперь мигрирован на workflow schema v2. Прочитай утверждённый canonical contract, текущий код, проверенные поля/items Project, открытые и недавно закрытые Issues, merged/open PRs, baseline evidence, phase reports и последний принятый handoff. Не повторяй Discovery, не пересоздавай завершённую работу, не создавай новый Project, не копируй старый Planner chat и не изменяй GitHub. Сохрани/назначь стабильные plan_item_id и верни migration audit со статусами observed/inferred/planned/unknown, утверждение текущей фазы, roadmap и максимум пять полных незаблокированных XS–M merge units с native hierarchy/dependencies, owner layers, conflict keys, integration validation, reviewers и gates.
 ```
 
 ## 7. Prove the migration
 
-After the migration PR is human-merged, run a separately approved Low-risk dogfood Issue: demonstrate that failing branch CI creates no PR, then fix it, obtain distinct reviewer/QA evidence and exact-SHA Admission PASS, and verify that exactly one PR exists. Do not use a production deploy, migration, auth change, or customer data for this pilot.
+After the migration PR is human-merged, run a separately approved Low-risk dogfood Issue. Verify canonical top-level Worker task/managed-worktree readback, zero PRs on failing branch CI, distinct reviewer/QA/admission identities, one exact-SHA PR, human authorization bound to repository/PR/head/base/admission digest, Orchestrator merge readback, and post-merge CI bound to the merge commit before Done/archive. Do not use deploy, migration, auth, or customer data for the pilot.
 
 Rollback is Git-first: revert the migration PR if repository behavior is unsafe. Project field additions should remain non-destructive during evaluation; do not delete old fields/data until v2 has completed an accepted wave and a human approves cleanup.

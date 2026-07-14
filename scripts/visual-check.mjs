@@ -45,7 +45,7 @@ try {
   await desktop.goto(url, { waitUntil: "networkidle" });
   await desktop.screenshot({ path: "test-results/desktop.png", fullPage: true });
   const title = await desktop.locator("h1").textContent();
-  if (!title?.includes("Plan the product globally")) {
+  if (!title?.includes("Plan globally")) {
     throw new Error("Desktop hero heading did not render expected text.");
   }
   const codeBlockCount = await desktop.locator("pre > code").count();
@@ -53,11 +53,7 @@ try {
   if (codeBlockCount < 1 || copyButtonCount !== codeBlockCount) {
     throw new Error(`Copy buttons missing. Found ${copyButtonCount} buttons for ${codeBlockCount} code blocks.`);
   }
-  if ((await desktop.locator(".start-prompt-card").count()) !== 1 || (await desktop.locator(".continue-prompt-card").count()) !== 1) {
-    throw new Error("Expected start and continuation prompt cards to render exactly once.");
-  }
-  await verifyCopyButton(desktop, ".start-prompt-card");
-  await verifyCopyButton(desktop, ".continue-prompt-card");
+  await verifyCopyButton(desktop, ".code-card");
   await desktop.waitForTimeout(900);
   if (!(await canvasHasPixels(desktop))) {
     throw new Error("Tech Core canvas appears blank on desktop.");
@@ -70,9 +66,9 @@ try {
   if (mobileCta < 1) {
     throw new Error("Mobile Quickstart CTA missing.");
   }
-  const mobileRussianPrompt = await mobile.locator("text=Старт · Русский").count();
-  if (mobileRussianPrompt !== 1) {
-    throw new Error("Mobile Russian prompt missing.");
+  const mobileGrowthPhase = await mobile.locator("text=Growth").count();
+  if (mobileGrowthPhase < 1) {
+    throw new Error("Mobile lifecycle phases are incomplete.");
   }
   const noMobileOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   if (!noMobileOverflow) {
@@ -90,6 +86,21 @@ try {
   await docs.goto(new URL("docs/pre-pr-gate/", url).toString(), { waitUntil: "networkidle" });
   if ((await docs.locator("h1", { hasText: "Strict pre-PR admission" }).count()) !== 1) {
     throw new Error("Canonical Markdown docs route did not render.");
+  }
+
+  const planning = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await planning.goto(new URL("docs/planning/", url).toString(), { waitUntil: "networkidle" });
+  if ((await planning.locator("text=Global Planner prompt — EN").count()) !== 1
+    || (await planning.locator("text=Промпт Global Planner — RU").count()) !== 1
+    || (await planning.locator("pre > code").count()) < 4) {
+    throw new Error("Canonical EN/RU Planner prompts did not render.");
+  }
+
+  const orchestration = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await orchestration.goto(new URL("docs/orchestration/", url).toString(), { waitUntil: "networkidle" });
+  const topology = orchestration.locator("img[alt*='Canonical task topology']");
+  if ((await topology.count()) !== 1 || !(await topology.evaluate((image) => image.complete && image.naturalWidth > 0))) {
+    throw new Error("Canonical task topology did not render as an image.");
   }
 
   console.log("PASS: visual checks completed");

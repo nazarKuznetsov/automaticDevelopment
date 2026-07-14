@@ -1,34 +1,52 @@
 ---
 title: Worker and TDD
-description: One-Issue delivery, owner-layer research, Finding Packets, and completion evidence.
+description: Single-write-owner delivery, surface checks, bounded reviewers, findings, and PR recovery.
 order: 7
 slug: worker-tdd
 ---
 
 # Worker and TDD
 
-A Worker owns exactly one Ready leaf Issue, one `agent/<issue>-<slug>` branch, and one PR. Isolation does not authorize scope expansion.
+A Worker owns one Ready leaf Issue, one fresh top-level task, one managed worktree, one branch, and one PR. See the canonical [task topology](orchestration.md).
 
-## Delivery loop
+## Before editing
 
-1. Verify Ready status, leaf/size/dependencies, claim, packet, branch, and validation contract.
-2. Trace vertically from user/caller to the owner layer and horizontally across sibling contracts, states, tests, and docs.
-3. Reproduce the missing behavior and add the highest-value failing test the repository supports.
-4. Capture RED, implement the smallest coherent owner-layer change, capture GREEN, then refactor.
-5. Run targeted checks, full configured validation, and the primary user/runtime signal.
-6. Push current HEAD for branch CI and request independent review/QA plus conditional design/security.
-7. Assemble admission evidence. Do not create a PR until it passes for that SHA.
+Verify the Worker Packet, claim, native leaf/dependencies, branch, `base_sha_at_launch`, owner layer, conflict keys, expected touch points, acceptance, validation, reviewers, and human gates. Trace the real owner layer and coupled surfaces before writing.
 
-Docs/config work may use an exemption only when runtime behavior is unchanged. Record the exemption type and reason before editing.
+If the observed surface adds a conflict key or touch point, stop before tracked writes and return Surface Update. Orchestrator decides whether to serialize or revise the plan. Worktree isolation is not permission to broaden scope.
 
-## Scope discoveries
+Worker is the only tracked-file write owner. QA may write disposable scratch/ignored artifacts; a tracked diff from QA/review is a gate failure.
 
-Return an out-of-scope defect as a Finding Packet with reproduction, severity, affected acceptance criterion, SHA, risk flags, and evidence. Continue only after Orchestrator classifies it as in-scope. Never silently bundle an independent fix or directly create a Bug.
+## TDD loop
 
-## Validation truth
+1. Reproduce the behavior.
+2. Add the highest-value supported failing test and capture RED.
+3. Implement the smallest coherent owner-layer change and capture GREEN.
+4. Refactor without weakening the signal.
+5. Run exact targeted, full, and integration validation.
+6. Validate the primary user/runtime signal, documentation, and rollout.
 
-The primary signal is observable behavior or runtime state. Tests, lint, typecheck, build, and logs are secondary unless the Issue explicitly defines one as the contract. A green proxy cannot override a broken primary signal.
+Docs/config work may use an exemption only when runtime behavior is unchanged and the reason is recorded before editing.
 
-After every new commit, prior reviewer, QA, branch CI, and admission evidence is stale. Re-run the required surfaces. A Worker posts Worker Completion Report v2 only after the PR exists, admission is current, and the primary signal is met. Blocked or partially validated work uses Finding/Human Action evidence and is not mislabeled complete. Merge remains human-owned.
+## Fresh, bounded validation agents
 
-Evidence cannot be self-certified. Each reviewer/QA result identifies a distinct task/thread/agent or named human, exact SHA, steps, and an inspectable result. A Worker must report a missing tool, inaccessible CI run, or unverifiable primary signal as `unknown`, `FAIL`, or `partially validated`; it must not replace missing evidence with plausible prose.
+For Low/Medium work, the Worker may use direct depth-one subagents, at most two active simultaneously:
+
+- fresh read-only reviewer;
+- fresh non-authoring QA;
+- fresh distinct admission-reviewer using `$github-pre-pr-reviewer`;
+- conditional design/security reviewers.
+
+Give them raw Issue, Worker Packet, diff, exact SHA, CI evidence, and relevant source—not Worker conclusions or full Orchestrator history. Worker, reviewer, QA, and admission IDs must differ. High/security/auth/data/migration review is a separate top-level task created by Orchestrator and remains human-gated.
+
+## Freshness and PR
+
+Every commit invalidates review, QA, branch CI, admission, and merge authorization. Keep `base_sha_at_launch` as immutable provenance. Before PR, compare the authoritative remote default branch with `validated_base_sha` (initially the launch SHA); if it advanced, synchronize, record the new validated base, and repeat all evidence. Preserve QA before/after tracked-tree evidence separately; the deterministic gate adds its own before/after evidence and must not overwrite QA findings.
+
+Admission agent authors the independent evidence. Worker passes it unchanged to the deterministic gate, which reruns configured commands and checks actual base/tree state. Only exact-SHA PASS permits one PR.
+
+Requested changes or post-PR failures return the same PR to Draft and the Issue to In Progress. Continue in the same Worker task, branch, and PR. The task remains available until Orchestrator confirms merge, green post-merge CI, Done, and archive.
+
+## Findings
+
+Worker never creates an Issue. It returns a complete Finding Packet containing source task ID, failure signature, reproduction, severity/risk flags, affected acceptance IDs, evidence, and duplicate-search proposal. Orchestrator performs the authoritative search and classification.

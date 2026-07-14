@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -29,6 +29,20 @@ test("dry-run reports a plan without writing files", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Dry run/);
   assert.throws(() => readFileSync(join(target, ".codex", "kit-lock.json"), "utf8"));
+});
+
+test("apply installs new lifecycle packets and admission agent as managed files", () => {
+  const target = repository();
+  const result = run(["--target", target, "--apply"]);
+  assert.equal(result.status, 0, result.stderr);
+  for (const path of [
+    ".codex/agents/admission-reviewer.toml",
+    ".codex/schemas/v2/orchestrator-start.schema.json",
+    ".codex/schemas/v2/merge-authorization.schema.json",
+    ".codex/schemas/v2/wave-completion.schema.json",
+  ]) assert.equal(existsSync(join(target, path)), true, path);
+  const lock = JSON.parse(readFileSync(join(target, ".codex", "kit-lock.json"), "utf8"));
+  assert.equal(lock.files[".codex/agents/admission-reviewer.toml"].ownership, "managed");
 });
 
 test("apply refuses a pre-existing host-owned AGENTS.md and prints a merge plan", () => {

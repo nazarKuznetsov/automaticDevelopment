@@ -5,8 +5,8 @@ import { resolve } from "node:path";
 
 const scopeIndex = process.argv.indexOf("--scope");
 const scope = scopeIndex === -1 ? "full" : process.argv[scopeIndex + 1];
-if (!new Set(["targeted", "full", "visual"]).has(scope)) {
-  console.error("Usage: run-validation.mjs --scope targeted|full|visual");
+if (!new Set(["targeted", "full", "integration", "visual"]).has(scope)) {
+  console.error("Usage: run-validation.mjs --scope targeted|full|integration|visual");
   process.exit(2);
 }
 

@@ -5,9 +5,17 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const { auditIssueBody, parseIssueForm } = require("../kit/repo/.github/scripts/readiness-audit.cjs");
 
-const body = `### Goal
+const body = `### Plan Item ID
+
+mvp.core-journey.export-report
+
+### Goal
 
 Export a report.
+
+### Merge Outcome
+
+One PR adds independently acceptable CSV export.
 
 ### Acceptance Criteria
 
@@ -22,6 +30,14 @@ None.
 ### Validation Expectations
 
 npm test
+
+### Integration Validation
+
+npm test -- export-integration
+
+### Integration Order
+
+1
 
 ### Primary Signal
 
@@ -38,6 +54,10 @@ Task
 ### Phase
 
 MVP
+
+### Priority
+
+P1
 
 ### Size
 
@@ -63,9 +83,25 @@ Export control states and accessible error copy.
 
 TDD required.
 
-### Repository Tracing
+### Owner Layer
 
-Export UI, API serializer, CSV service, and their tests.
+Report export service.
+
+### Conflict Keys
+
+request-contract, report-export
+
+### Expected Touch Points
+
+Export route, CSV serializer, contract tests, and user documentation.
+
+### Conditional Reviewers
+
+reviewer, qa, admission-reviewer, design-reviewer
+
+### Out of Scope
+
+PDF and spreadsheet export.
 
 ### Human Gates
 
@@ -76,6 +112,8 @@ test("Issue Form parser returns actual values instead of heading presence", () =
   assert.equal(fields.goal, "Export a report.");
   assert.match(fields.acceptance, /Given visible rows/);
   assert.equal(fields.size, "S");
+  assert.equal(fields.priority, "P1");
+  assert.equal(fields.plan_item_id, "mvp.core-journey.export-report");
 });
 
 test("readiness audit passes a complete leaf-compatible body", () => {
@@ -109,4 +147,30 @@ test("readiness audit rejects placeholders, malformed acceptance, and unverifiab
   assert.ok(result.reasons.includes("Missing or placeholder value: Goal."));
   assert.ok(result.reasons.includes("Acceptance Criteria must contain three to five list items."));
   assert.ok(result.reasons.includes("Native sub-issue state could not be verified; readiness fails closed."));
+});
+
+test("readiness audit validates Priority and the new execution-surface fields", () => {
+  const result = auditIssueBody({
+    body: body
+      .replace("\nP1\n", "\nUrgent\n")
+      .replace("request-contract, report-export", "TBD"),
+    labels: ["agent-ready"],
+  });
+  assert.equal(result.ready, false);
+  assert.ok(result.reasons.includes("Invalid priority value: Urgent."));
+  assert.ok(result.reasons.includes("Missing or placeholder value: Conflict Keys."));
+});
+
+test("readiness audit rejects unstable plan IDs, invalid order, and malformed conflict keys", () => {
+  const result = auditIssueBody({
+    body: body
+      .replace("mvp.core-journey.export-report", "Issue 123")
+      .replace("\n1\n", "\nzero\n")
+      .replace("request-contract, report-export", "Request Contract, src/app.ts"),
+    labels: ["agent-ready"],
+  });
+  assert.equal(result.ready, false);
+  assert.ok(result.reasons.includes("Plan Item ID must be a stable lowercase semantic ID."));
+  assert.ok(result.reasons.includes("Integration Order must be a positive integer."));
+  assert.ok(result.reasons.includes("Conflict Keys must be comma-separated lowercase kebab-case values."));
 });

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Automation Guide task topology</title>
+  <desc id="desc">Brainstorm and Planner tasks lead to human wave approval, a fresh Orchestrator creates two disjoint top-level Worker tasks with review agents and pull requests, then exact-SHA human approval allows Orchestrator merge and post-merge reconciliation.</desc>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15213a"/>
+      <stop offset="1" stop-color="#0c1322"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#62dcff"/>
+    </marker>
+    <style>
+      .bg { fill: #080d16; stroke: #233450; stroke-width: 2; }
+      .node { fill: url(#surface); stroke: #3c5c89; stroke-width: 2; rx: 12; }
+      .human { stroke: #8c7cff; }
+      .worker { stroke: #168cff; }
+      .done { stroke: #41d7aa; }
+      .line { fill: none; stroke: #62dcff; stroke-width: 2.5; marker-end: url(#arrow); }
+      .label { fill: #eef6ff; font: 600 16px system-ui, -apple-system, sans-serif; text-anchor: middle; }
+      .small { fill: #9fb2cd; font: 500 13px system-ui, -apple-system, sans-serif; text-anchor: middle; }
+      .section { fill: #62dcff; font: 700 12px system-ui, -apple-system, sans-serif; letter-spacing: 1.6px; }
+    </style>
+  </defs>
+  <rect class="bg" x="1" y="1" width="1198" height="518" rx="20"/>
+
+  <text class="section" x="42" y="42">PLAN AND AUTHORIZE</text>
+  <rect class="node" x="42" y="64" width="190" height="76"/>
+  <text class="label" x="137" y="96">Brainstorm task</text>
+  <text class="small" x="137" y="119">Canonical Brief</text>
+  <path class="line" d="M232 102 H270"/>
+  <rect class="node" x="272" y="64" width="190" height="76"/>
+  <text class="label" x="367" y="96">Planner task</text>
+  <text class="small" x="367" y="119">Roadmap + wave</text>
+  <path class="line" d="M462 102 H500"/>
+  <rect class="node human" x="502" y="64" width="210" height="76"/>
+  <text class="label" x="607" y="96">Human approval</text>
+  <text class="small" x="607" y="119">Exact wave revision</text>
+  <path class="line" d="M712 102 H750"/>
+  <rect class="node" x="752" y="64" width="260" height="76"/>
+  <text class="label" x="882" y="96">Fresh Orchestrator task</text>
+  <text class="small" x="882" y="119">One approved wave</text>
+
+  <text class="section" x="42" y="194">DELIVER IN ISOLATION</text>
+  <path class="line" d="M882 140 V188 H327 V222"/>
+  <path class="line" d="M882 140 V188 H877 V222"/>
+  <rect class="node worker" x="132" y="224" width="390" height="82"/>
+  <text class="label" x="327" y="256">Top-level Worker task A</text>
+  <text class="small" x="327" y="280">Managed worktree · branch · one PR</text>
+  <rect class="node worker" x="682" y="224" width="390" height="82"/>
+  <text class="label" x="877" y="256">Top-level Worker task B</text>
+  <text class="small" x="877" y="280">Disjoint conflict keys only</text>
+
+  <path class="line" d="M327 306 V338"/>
+  <path class="line" d="M877 306 V338"/>
+  <rect class="node" x="132" y="340" width="390" height="72"/>
+  <text class="label" x="327" y="369">Fresh review agents → PR A</text>
+  <text class="small" x="327" y="393">Reviewer · QA · admission</text>
+  <rect class="node" x="682" y="340" width="390" height="72"/>
+  <text class="label" x="877" y="369">Fresh review agents → PR B</text>
+  <text class="small" x="877" y="393">Exact head/base SHA evidence</text>
+
+  <text class="section" x="42" y="466">MERGE AND RECONCILE</text>
+  <path class="line" d="M327 412 V472 H444"/>
+  <path class="line" d="M877 412 V472 H756"/>
+  <rect class="node human" x="446" y="438" width="308" height="60"/>
+  <text class="label" x="600" y="465">Human approves exact PR / SHA</text>
+  <text class="small" x="600" y="487">Orchestrator re-reads and merges</text>
+  <path class="line" d="M754 468 H792"/>
+  <rect class="node done" x="794" y="438" width="334" height="60"/>
+  <text class="label" x="961" y="465">Post-merge CI → Done → archive</text>
+  <text class="small" x="961" y="487">GitHub remains the durable ledger</text>
+</svg>

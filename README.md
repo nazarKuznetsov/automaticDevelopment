@@ -1,6 +1,6 @@
 # Codex Automation Guide v2
 
-Lifecycle-driven, GitHub-native development for Codex: Canonical Brief → global roadmap → design gate → rolling waves → isolated TDD Workers → independent SHA-bound admission → human merge.
+Lifecycle-driven, GitHub-native development for Codex: Canonical Brief → global roadmap → design gate → approved wave → fresh top-level TDD Workers → independent head/remote-base admission → repository/PR/head/base/digest-bound human authorization → Orchestrator merge → merge-commit-bound post-merge Done.
 
 - Published guide: <https://nazarkuznetsov.github.io/automaticDevelopment/>
 - Installable kit: `kit/repo/`
@@ -43,6 +43,6 @@ Repositories that already used workflow v1 should follow the canonical [Existing
 
 ## Scope
 
-The kit uses Codex desktop tasks/worktrees and native GitHub Issues, Project v2, Actions, PRs, sub-issues, and dependencies. It adds no hosted controller, database, webhook service, or required Figma integration. Scheduled local heartbeats require the Codex desktop app and an available checkout.
+The kit uses one fresh Orchestrator task per wave and one fresh top-level managed-worktree Worker task per Ready leaf Issue. It uses native GitHub Issues, Project v2, Actions, PRs, sub-issues, and dependencies, with at most two Workers only on disjoint conflict keys. It adds no hosted controller, database, webhook service, required Figma integration, or pinned model slug. Scheduled local heartbeats require the Codex desktop app and an available checkout.
 
 No live GitHub pilot, Issue, branch, or PR is created by repository tests. The dogfood pilot requires a separate human approval.

@@ -2,11 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Pre-PR Admission Evidence v2",
   "type": "object",
-  "required": ["schema_version", "packet_type", "commit_sha", "worker", "issue", "acceptance", "tdd", "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates"],
+  "required": ["schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha", "qa_tracked_worktree", "worker", "issue", "acceptance", "tdd", "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates"],
   "properties": {
     "schema_version": { "const": 2 },
     "packet_type": { "const": "pre_pr_admission" },
     "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "base_sha_at_launch": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "validated_base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "qa_tracked_worktree": {
+      "$ref": "#/$defs/clean_tree"
+    },
+    "gate_tracked_worktree": {
+      "$ref": "#/$defs/clean_tree"
+    },
     "worker": {
       "type": "object",
       "required": ["source"],
@@ -15,10 +23,12 @@
     },
     "issue": {
       "type": "object",
-      "required": ["number", "is_leaf", "unresolved_dependencies"],
+      "required": ["number", "is_leaf", "risk", "high_risk_flags", "unresolved_dependencies"],
       "properties": {
         "number": { "type": "integer", "minimum": 1 },
         "is_leaf": { "const": true },
+        "risk": { "enum": ["Low", "Medium", "High"] },
+        "high_risk_flags": { "type": "array", "items": { "enum": ["security", "auth", "data", "migration"] }, "uniqueItems": true },
         "unresolved_dependencies": { "type": "array", "maxItems": 0 }
       },
       "additionalProperties": false
@@ -58,19 +68,21 @@
     },
     "local_validation": {
       "type": "object",
-      "required": ["targeted", "full"],
+      "required": ["targeted", "full", "integration"],
       "properties": {
         "targeted": { "$ref": "#/$defs/validation" },
-        "full": { "$ref": "#/$defs/validation" }
+        "full": { "$ref": "#/$defs/validation" },
+        "integration": { "$ref": "#/$defs/validation" }
       },
       "additionalProperties": false
     },
     "reviews": {
       "type": "object",
-      "required": ["reviewer", "qa", "design", "security"],
+      "required": ["reviewer", "qa", "admission", "design", "security"],
       "properties": {
         "reviewer": { "$ref": "#/$defs/review" },
         "qa": { "$ref": "#/$defs/review" },
+        "admission": { "$ref": "#/$defs/review" },
         "design": { "$ref": "#/$defs/conditional_review" },
         "security": { "$ref": "#/$defs/conditional_review" }
       },
@@ -135,12 +147,23 @@
     }
   },
   "$defs": {
+    "clean_tree": {
+      "type": "object",
+      "required": ["status", "before", "after"],
+      "properties": {
+        "status": { "const": "CLEAN" },
+        "before": { "const": "" },
+        "after": { "const": "" }
+      },
+      "additionalProperties": false
+    },
     "source": {
       "type": "object",
       "required": ["kind", "id"],
       "properties": {
         "kind": { "enum": ["agent_task", "human"] },
-        "id": { "type": "string", "minLength": 1 }
+        "id": { "type": "string", "minLength": 1 },
+        "scope": { "enum": ["direct_subagent", "top_level_task", "human"] }
       },
       "additionalProperties": false
     },

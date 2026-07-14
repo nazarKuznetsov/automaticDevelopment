@@ -1,43 +1,43 @@
 ---
 title: Pre-PR Gate
-description: Independent SHA-bound admission, baseline policy, hooks, and post-PR recovery.
+description: Distinct admission agent, exact head/base SHA, clean tree, CI, baseline, and PR recovery.
 order: 8
 slug: pre-pr-gate
 ---
 
 # Strict pre-PR admission
 
-PR creation is a state transition, not a hopeful request for CI. Before any PR tool runs, all eight admission groups must pass:
+PR creation is a state transition. Before any PR tool runs, require:
 
-1. acceptance criteria with evidence;
-2. TDD RED/GREEN or allowed docs/config exemption;
-3. targeted and full local validation from workflow config;
-4. independent reviewer and QA, plus conditional design/security;
-5. branch CI on the exact `agent/**` HEAD SHA;
-6. no unresolved native blocking dependency;
-7. baseline comparison with no new or touched failure;
-8. documentation, migration/rollout, and human gates resolved.
+1. all acceptance criteria and the primary signal;
+2. TDD RED/GREEN or an allowed behavior-neutral exemption;
+3. exact targeted, full, and integration validation;
+4. clean tracked tree before/after QA and gate validation;
+5. distinct reviewer, QA, and admission-reviewer identities, plus conditional specialists;
+6. branch CI for the exact current head SHA;
+7. unchanged default-branch SHA since Worker launch;
+8. no blocking dependency or human gate;
+9. no new/touched failure, and traceable legacy Bug exemptions;
+10. documentation and rollout resolved.
 
-Create machine evidence matching `.codex/schemas/v2/pre-pr-admission.schema.json`, then run:
+The admission-reviewer runs `$github-pre-pr-reviewer` in a fresh non-authoring context and returns machine evidence. The Worker cannot author or “correct” that PASS. It invokes:
 
 ```bash
 node .codex/scripts/pre-pr-gate.mjs --evidence /path/to/evidence.json
 ```
 
-The gate invalidates any older marker first, verifies workflow configuration, and itself reruns the exact configured targeted and full commands. It then compares the evidence command list with configuration before evaluating the remaining groups.
+The script deletes older markers, verifies the required evidence shape, resolves actual HEAD and the authoritative default branch from `origin`, preserves QA tracked-tree evidence, rejects a dirty gate worktree, reruns configured targeted/full/integration commands, rechecks tracked state, and evaluates the raw evidence. `PASS + CREATE_ONCE` writes an untracked one-shot SHA/base/report-digest marker under the actual Git directory. The hook re-reads the remote base before PR creation. `PASS + USE_EXISTING` creates no marker. FAIL stays in Validation; BLOCKED moves to Blocked.
 
-`PASS + CREATE_ONCE` writes an untracked marker under the actual Git directory, so managed worktrees are supported. `PASS + USE_EXISTING` writes no creation marker. Any commit change invalidates the marker, and any subsequent gate run invalidates the previous marker before evaluating new evidence. The hook consumes the marker for one PR-creation attempt; after an ambiguous or failed attempt, query GitHub for an existing PR and rerun admission instead of retrying blindly. FAIL keeps the Issue in Validation and authorizes no PR. BLOCKED moves it to Blocked.
+Any head or base change invalidates reviewer, QA, specialists, admission, and human merge authorization. Synchronize and start the evidence chain again; never copy PASS forward.
 
-The evidence behind a PASS uses exact commands/results, canonical run/artifact links, distinct reviewer/QA task or human identities, and the current SHA. A copied `PASS` string, inaccessible URL, or same-context role-play is not independent evidence and fails closed.
+## Baseline
 
-## Baseline policy
-
-A legacy failure is exempt only when a separate Bug Issue exists and evidence proves the failure predates the branch. A new failure or a failure in touched behavior always blocks admission.
+A legacy failure is exempt only when a separate Bug exists and exact base-SHA evidence proves it predates the branch. New or touched failures always block.
 
 ## Defense in depth
 
-Project hooks intercept known `gh pr create` and MCP PR creation paths. Codex hooks do not intercept every equivalent path, so the Worker/Orchestrator contract and gate script remain the primary boundary. GitHub rulesets remain the merge boundary.
+The hook recognizes known PR creation tools and Bash payloads using either `command` or `cmd`. Hooks do not intercept every equivalent path and require project trust, so the skill contract and deterministic gate remain primary. GitHub rulesets protect merge.
 
 ## Recovery
 
-After two unsuccessful fixes for the same signal, change approach or engage a specialist. On the third repetition, set Blocked and request a human. If post-PR checks fail or changes are requested, convert the PR to Draft, return the Issue to In Progress, and continue in the same branch/PR. Never open a replacement PR for the same work.
+On the first repeated signal, attempt a focused fix. After the second failure, change approach or add a specialist. On the third, set Blocked and request a human. After requested changes or failing PR checks, reuse the same Worker task/branch/Draft PR.

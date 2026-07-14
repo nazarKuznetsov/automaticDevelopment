@@ -1,19 +1,28 @@
 const FIELD_NAMES = {
+  "Plan Item ID": "plan_item_id",
   "Goal": "goal",
+  "Merge Outcome": "merge_outcome",
   "Acceptance Criteria": "acceptance",
   "Dependency / Blocker State": "blockers",
   "Validation Expectations": "validation",
+  "Integration Validation": "integration_validation",
+  "Integration Order": "integration_order",
   "Primary Signal": "primary_signal",
   "Secondary Signals": "secondary_signals",
   "Work Type": "work_type",
   "Phase": "phase",
+  "Priority": "priority",
   "Size": "size",
   "Risk": "risk",
   "QA Required": "qa_required",
   "Security Impact": "security",
   "UI / Design Impact": "design",
   "TDD / Exemption": "tdd",
-  "Repository Tracing": "tracing",
+  "Owner Layer": "owner_layer",
+  "Conflict Keys": "conflict_keys",
+  "Expected Touch Points": "touch_points",
+  "Conditional Reviewers": "reviewers",
+  "Out of Scope": "out_of_scope",
   "Human Gates": "human_gates",
 };
 
@@ -21,6 +30,7 @@ const PLACEHOLDER_VALUE = /^(?:_?no response_?|n\/?a|tbd|todo|unknown|<[^>]+>)\.
 const ENUMS = {
   work_type: new Set(["Epic", "Capability", "Task", "Bug", "Docs", "Automation", "Refactor"]),
   phase: new Set(["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"]),
+  priority: new Set(["P0", "P1", "P2", "P3"]),
   size: new Set(["XS", "S", "M", "L", "XL"]),
   risk: new Set(["Low", "Medium", "High"]),
   qa_required: new Set(["Yes", "No"]),
@@ -61,6 +71,18 @@ function auditIssueBody({ body = "", labels = [], hasSubIssues = false, leafStat
   if (hasRealValue(fields.acceptance)) {
     const count = acceptanceItemCount(fields.acceptance);
     if (count < 3 || count > 5) reasons.push("Acceptance Criteria must contain three to five list items.");
+  }
+  if (hasRealValue(fields.plan_item_id) && !/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(fields.plan_item_id)) {
+    reasons.push("Plan Item ID must be a stable lowercase semantic ID.");
+  }
+  if (hasRealValue(fields.integration_order) && !/^[1-9][0-9]*$/.test(fields.integration_order)) {
+    reasons.push("Integration Order must be a positive integer.");
+  }
+  if (hasRealValue(fields.conflict_keys)) {
+    const keys = fields.conflict_keys.split(",").map((item) => item.trim()).filter(Boolean);
+    if (keys.length === 0 || keys.some((key) => !/^[a-z0-9][a-z0-9-]*$/.test(key))) {
+      reasons.push("Conflict Keys must be comma-separated lowercase kebab-case values.");
+    }
   }
   if (new Set(["Epic", "Capability"]).has(fields.work_type)) {
     reasons.push("Epic and Capability issues cannot be agent-ready.");

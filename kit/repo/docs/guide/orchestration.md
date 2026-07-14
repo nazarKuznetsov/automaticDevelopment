@@ -1,48 +1,84 @@
 ---
 title: Orchestration
-description: Worker isolation, bounded concurrency, Finding triage, heartbeat, and handoff.
+description: Canonical task topology, fresh Worker tasks, conflict arbitration, merge, heartbeat, and handoff.
 order: 6
 slug: orchestration
 ---
 
 # Orchestration
 
-Orchestrator executes the approved Ready wave. It does not brainstorm, change the roadmap, or fill an idle queue from memory.
+This page is the canonical task topology. Other pages refer here instead of duplicating it.
 
-This workflow uses Codex [subagents/custom agents](https://learn.chatgpt.com/docs/agent-configuration/subagents) for bounded delegation and Codex [managed worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees) for task isolation. Their presence in documentation does not prove the current client exposes the needed task controls; probe first.
+![Canonical task topology from Brainstorm through post-merge archive](./assets/task-topology.svg)
 
-## Heartbeat loop
+Codex subagents reduce main-task context pollution but consume additional tokens. Use them for bounded review/QA, not as recursive write fan-out. Managed worktrees isolate top-level task changes. Probe current task/worktree/scheduling capabilities before relying on them.
 
-Every active heartbeat re-reads Project Ready items, In Progress/Validation Issues, native dependencies, claims, linked PRs, checks, requested changes, Finding Packets, and human blockers. It reconciles stale status before launching anything.
+## Start and materialize
 
-Every external write is followed by read-after-write verification. Record returned task/worktree IDs, GitHub URLs/IDs, branch names, and SHAs; on an ambiguous timeout, query before retrying. A planned call, generated prompt, or tool description is not a completed mutation.
+One fresh Orchestrator handles one approved wave. Its human-approved Start Packet binds the Phase Plan revision and approved `plan_item_id` values before Issues exist. It authorizes at most five top-level Worker launches, at most two concurrent writers on canonical disjoint conflict keys, managed worktrees, monitoring, high-risk review tasks, post-Done archive, and merge only after exact authorization.
 
-Keep at most two write Workers and five total launches per Orchestrator. Attach a scheduled heartbeat every 20 minutes while executable work exists. Pause when the queue is empty or only a human can unblock it.
+Orchestrator does not write product code or invent backlog. It first materializes the approved Phase Plan exactly and idempotently, verifies every GitHub mutation, and publishes a Plan Materialization Report.
 
-A Worker launch counts only after task/worktree creation and claim verification; relaunching the same Issue counts again. Review agents and the replacement Orchestrator do not count. Track repeated failures by stable check/test ID plus normalized failure signature and record Attempt 1/2/3; a successful run resets that signal.
+## Orchestrator Start prompt — EN
+
+```text
+Use $github-agent-orchestrator in a fresh top-level Codex task for exactly one wave in saved project <project>.
+Start Packet: <orchestrator-start-packet>
+You are authorized only for the packet revision: materialize it exactly, create at most five fresh top-level Worker tasks in managed worktrees, keep at most two disjoint write Workers, monitor/steer them, create required top-level high-risk review tasks, and archive Workers only after post-merge Done. Do not fork this task, write product code, invent backlog, publish local paths, or merge without a separate exact PR/head-SHA authorization.
+```
+
+## Промпт запуска Orchestrator — RU
+
+```text
+Используй $github-agent-orchestrator в новой top-level Codex task ровно для одной wave в saved project <project>.
+Start Packet: <orchestrator-start-packet>
+Ты авторизован только для указанной ревизии packet: материализуй её без изменения содержания, создай не более пяти новых top-level Worker tasks в managed worktrees, держи максимум двух непересекающихся write Workers, мониторь/направляй их, создавай нужные top-level high-risk review tasks и архивируй Workers только после post-merge Done. Не делай fork этой task, не пиши продуктовый код, не придумывай backlog, не публикуй локальные пути и не merge без отдельного разрешения на точные PR/head SHA.
+```
+
+## Transactional launch and concurrency
+
+Claim → `CREATING` → `LAUNCHED`. A queued/client ID is not a launch. Count only matching canonical task/worktree IDs with top-level/managed ownership and verified ready/running state. On ambiguity, search existing tasks before retrying; on creation failure, release the claim without consuming a launch. Never use `fork_thread`, `/private/tmp`, or a handmade worktree as the normal execution surface.
+
+Build the occupied set from active `conflict_keys`. A Worker that discovers an extra overlapping surface stops before writes and returns Surface Update. Stale claim recovery requires task absence, three missed heartbeats, and no branch or PR.
 
 ## Worker launch prompt — EN
 
 ```text
-Use $github-agent-worker for Worker Packet v2 below. Work on exactly one Ready leaf Issue in its managed worktree and agent/<issue>-<slug> branch. Use TDD, return out-of-scope defects as Finding Packets, obtain independent review/QA and conditional specialists, and do not create a PR before a SHA-bound Admission PASS.
-<worker-packet>
+Use $github-agent-worker in this fresh top-level managed-worktree task.
+Raw Issue: <issue-url-and-body>
+Worker Packet: <worker-packet>
+Canonical revisions: <links-and-revisions>
+Work on exactly this leaf as the sole tracked-file author. Verify owner layer/conflict keys before writing; return Surface Update if they expand. Use TDD, bounded fresh review agents, branch CI, base freshness, clean tracked tree, and distinct admission-reviewer evidence. Do not create Issues or merge.
 ```
 
 ## Промпт запуска Worker — RU
 
 ```text
-Используй $github-agent-worker для Worker Packet v2 ниже. Работай ровно над одной Ready leaf Issue в её managed worktree и ветке agent/<issue>-<slug>. Используй TDD, возвращай дефекты вне scope как Finding Packets, получи независимые review/QA и условных specialists, не создавай PR до SHA-bound Admission PASS.
-<worker-packet>
+Используй $github-agent-worker в этой новой top-level managed-worktree task.
+Raw Issue: <issue-url-and-body>
+Worker Packet: <worker-packet>
+Canonical revisions: <links-and-revisions>
+Работай только над этим leaf как единственный автор tracked files. До записи проверь owner layer/conflict keys; при расширении верни Surface Update. Используй TDD, ограниченных свежих review agents, branch CI, fresh base, clean tracked tree и evidence отдельного admission-reviewer. Не создавай Issues и не merge.
 ```
 
-Create a separate top-level Codex task and managed worktree per Issue only after the relevant tools are discovered and probed. Managed worktrees may begin at detached HEAD, so create and verify the Issue branch inside that worktree. Inside Workers, allow only bounded read-heavy subagents. If task/worktree creation is unavailable, run one write Worker with read-only sibling reviewers; final fallback is a complete copy-paste prompt. Never describe a prompt as a created task.
+## Findings, merge, and post-merge
 
-Independent reviewer/QA evidence must come from separate task/thread/agent IDs or named humans and must bind to the exact SHA. The Worker cannot imitate a missing reviewer. Optional capability or tool absence is recorded as unavailable and follows the fallback; it is never guessed from documentation or memory.
+Worker returns Finding Packets; Orchestrator performs authoritative duplicate search, returns in-scope fixes, creates proven independent Low/Medium Bugs, and escalates High/security/data/migration/product ambiguity.
 
-## Finding loop
+After a repository/PR/head/base/admission-digest-bound Merge Authorization Packet, Orchestrator re-reads every binding, checks, dependencies, and threads. Any change cancels authorization. A valid merge uses `expected_head_sha`, requires canonical merge-commit readback and post-merge CI bound to that commit, and reaches Done/archive only after this evidence passes.
 
-Worker never creates an Issue. Orchestrator searches open Issues plus the configured 90-day closed-Issue window, records the query, links duplicates, returns in-scope Low/Medium fixes, requests missing/invalid severity evidence, or creates a proven independent Low/Medium Bug as sub-issue and dependency. It reads the new Issue and relationships back before reporting success or retrying. It blocks the parent when acceptance is broken. High/security/data/migration/product ambiguity always becomes Human Action Required before any Ready Bug, even when the possible fix appears in scope.
+## Heartbeat and Handoff
 
-## Handoff
+Attach the 20-minute schedule only while work is active; pause when idle or awaiting a human. At wave completion or five launches, stop launching and hand off.
 
-After launch five, mark the ledger DRAINING and create a fresh Orchestrator task. The replacement task ID must be returned, then the replacement audits GitHub and records `handoff accepted`; only then may the old task retire. If tooling cannot create the replacement, output a handoff packet and pause new launches.
+### Handoff / takeover prompt — EN
+
+```text
+Use $github-agent-orchestrator in a fresh top-level task. Reconstruct wave <wave-id> from GitHub and canonical contracts using this Orchestrator State/Handoff Packet: <packet>. Do not trust prior chat history. Verify every claim, task ID, branch, PR, SHA, attempt, and heartbeat. Write takeover readback before the old Orchestrator is archived. Do not launch until the handoff is accepted.
+```
+
+### Промпт handoff / takeover — RU
+
+```text
+Используй $github-agent-orchestrator в новой top-level task. Восстанови wave <wave-id> из GitHub и canonical contracts по этому Orchestrator State/Handoff Packet: <packet>. Не доверяй истории прошлого чата. Проверь каждый claim, task ID, branch, PR, SHA, attempt и heartbeat. Запиши takeover readback до архивирования старого Orchestrator. Не запускай Workers до принятия handoff.
+```

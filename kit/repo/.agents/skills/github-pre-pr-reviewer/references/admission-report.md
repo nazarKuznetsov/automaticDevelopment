@@ -1,34 +1,35 @@
 # Pre-PR Admission Report v2
 
-Bind every report to one commit SHA.
+Bind the report to one head SHA, one base SHA, and one distinct admission-reviewer identity.
 
 ```md
 ## Pre-PR Admission Report
 
 Schema: 2
 Issue: #<number>
-Commit SHA: <full-sha>
+Head SHA: <full-sha>
+Base SHA at launch/validated/current: <full-sha> / <full-sha> / <full-sha>
+Admission source: <distinct task or human ID>
 Status: PASS | FAIL | BLOCKED
 
-Acceptance: PASS | FAIL — <evidence>
+QA tracked tree before/after: CLEAN | FAIL
+Deterministic gate tracked tree before/after: CLEAN | FAIL
+Acceptance and primary signal: PASS | FAIL — <evidence>
 TDD: PASS | EXEMPT | FAIL — <RED/GREEN or allowed reason>
-Targeted validation: PASS | FAIL — <exact commands, exit codes, observed result, SHA>
-Full validation: PASS | FAIL — <exact commands, exit codes, observed result, SHA>
-Independent reviewer: PASS | FAIL — <distinct task/human source ID, SHA, evidence>
-QA: PASS | FAIL — <distinct task/human source ID, SHA, evidence>
-Design review: PASS | NOT_REQUIRED | FAIL
-Security review: PASS | NOT_REQUIRED | FAIL
-Branch CI: PASS | FAIL — <run URL and matching SHA>
-Dependencies: CLEAR | BLOCKED
+Targeted/full/integration validation: PASS | FAIL — <commands/results/SHA>
+Reviewer: PASS | FAIL — <distinct ID/SHA/evidence>
+QA: PASS | FAIL — <distinct ID/SHA/evidence>
+Design/security/high-risk review: PASS | NOT_REQUIRED | FAIL
+Branch CI: PASS | FAIL — <run URL/SHA>
+Dependencies and review threads: CLEAR | BLOCKED
 Baseline: PASS | FAIL — <legacy Bug links>
-Documentation: PASS | NOT_REQUIRED | FAIL
-Migration / rollout: PASS | NOT_REQUIRED | FAIL
+Documentation and rollout: PASS | NOT_REQUIRED | FAIL
 Human gates: CLEAR | BLOCKED
 
 PR action: CREATE_ONCE | USE_EXISTING | NONE
 Blockers: []
 ```
 
-The machine evidence uses the strict object fields in `.codex/schemas/v2/pre-pr-admission.schema.json`: a Worker source, traceable `{source, observed}` evidence records, command/exit-code records, exact configured validation, distinct reviewer/QA sources, conditional-review reasons, CI workflow/run URL, and explicit documentation/rollout/human-gate reasons. A bare `"PASS"` string is invalid.
+The machine evidence follows `.codex/schemas/v2/pre-pr-admission.schema.json`. `base_sha_at_launch` is immutable provenance; `validated_base_sha` records the default-branch revision against which the current HEAD and all fresh evidence were validated. Bare PASS strings, copied conclusions, local absolute filesystem paths, missing identities, or stale SHA/base evidence are invalid.
 
-Store the local PASS marker under the actual Git directory at `codex-agent/pre-pr-admission.json`; do not commit it. The hook consumes one PR-creation attempt in `pre-pr-admission.consume.json`. If the attempt fails, query GitHub for an existing PR and rerun admission before another attempt.
+The admission agent returns evidence but does not create the local marker. The single write-owner Worker invokes the deterministic gate with the unchanged QA tree evidence. The gate preserves that evidence, adds its own before/after state, reruns configured commands, reads the authoritative default branch from `origin`, then writes an untracked one-shot marker under the actual Git directory. The marker contains an admission report digest; the hook re-reads the authoritative base and rejects a stale marker. If PR creation is ambiguous, query GitHub before rerunning admission.

@@ -28,7 +28,9 @@ except (json.JSONDecodeError, OSError):
 
 tool_name = str(event.get("tool_name", ""))
 tool_input = event.get("tool_input") or {}
-command = str(tool_input.get("command", "")) if isinstance(tool_input, dict) else ""
+command = ""
+if isinstance(tool_input, dict):
+    command = str(tool_input.get("command") or tool_input.get("cmd") or "")
 is_pr_create = bool(re.search(r"(^|[;&|]\s*)gh\s+pr\s+create(?:\s|$)", command))
 is_pr_tool = bool(re.search(r"^mcp__.*create_pull_request.*$", tool_name))
 
@@ -52,11 +54,26 @@ try:
         git_dir = root / git_dir
     marker_path = git_dir / "codex-agent" / "pre-pr-admission.json"
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
-except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+    config = json.loads((root / ".codex" / "agent-workflow.json").read_text(encoding="utf-8"))
+    default_branch = config["github"]["default_branch"]
+    remote_line = subprocess.check_output(
+        ["git", "ls-remote", "--exit-code", "origin", f"refs/heads/{default_branch}"],
+        cwd=root,
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    current_base = remote_line.split()[0]
+except (OSError, subprocess.SubprocessError, json.JSONDecodeError, KeyError, IndexError):
     deny("No valid Pre-PR Admission Report was found for this checkout.")
 
-if marker.get("status") != "PASS" or marker.get("commit_sha") != head:
+if (
+    marker.get("status") != "PASS"
+    or marker.get("commit_sha") != head
+    or not re.fullmatch(r"[0-9a-f]{64}", str(marker.get("report_digest", "")))
+):
     deny("Pre-PR Admission must PASS for the current commit SHA before PR creation.")
+if not re.fullmatch(r"[0-9a-f]{40}", current_base) or marker.get("base_sha") != current_base:
+    deny("The authoritative default-branch SHA changed after admission; synchronize and rerun the full gate.")
 
 consumption_path = git_dir / "codex-agent" / "pre-pr-admission.consume.json"
 consumption = {

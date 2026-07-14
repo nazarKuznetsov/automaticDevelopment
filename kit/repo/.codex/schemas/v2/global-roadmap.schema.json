@@ -8,7 +8,36 @@
     "packet_type": { "const": "global_roadmap" },
     "canonical_brief_revision": { "type": "string", "minLength": 1 },
     "current_phase": { "enum": ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"] },
-    "phases": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "type": "object", "required": ["phase", "outcomes", "epics", "dependencies", "risks", "entry_criteria", "exit_criteria"] } },
+    "phases": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["phase", "outcomes", "epics", "dependencies", "risks", "entry_criteria", "exit_criteria"],
+        "properties": {
+          "phase": { "type": "string", "minLength": 1 },
+          "outcomes": { "type": "array" },
+          "epics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["plan_item_id", "title"],
+              "properties": {
+                "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+                "title": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": true
+            }
+          },
+          "dependencies": { "type": "array" },
+          "risks": { "type": "array" },
+          "entry_criteria": { "type": "array" },
+          "exit_criteria": { "type": "array" }
+        },
+        "additionalProperties": false
+      }
+    },
     "human_approvals": { "type": "object", "required": ["roadmap", "current_phase_entry"] }
   }
 }

@@ -7,10 +7,10 @@ const phases = ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabili
 const docs = [
   ["Quickstart", "Install, configure, approve, pilot.", "quickstart"],
   ["Existing Products", "Migrate v1 without losing product history.", "existing-products"],
-  ["Planning", "Roadmap all phases; execute one wave.", "planning"],
+  ["Planning", "Stable IDs and complete Issue merge units.", "planning"],
   ["GitHub Model", "Hierarchy, dependencies, fields, states.", "github-model"],
-  ["Orchestration", "Worktrees, findings, heartbeat, handoff.", "orchestration"],
-  ["Pre-PR Gate", "Independent, SHA-bound admission.", "pre-pr-gate"],
+  ["Orchestration", "Fresh tasks, worktrees, merge, handoff.", "orchestration"],
+  ["Pre-PR Gate", "Independent head/base-SHA admission.", "pre-pr-gate"],
 ];
 ---
 
@@ -19,7 +19,7 @@ const docs = [
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Lifecycle-driven Codex development with GitHub rolling waves, TDD Workers, independent pre-PR admission, and human phase gates." />
+    <meta name="description" content="Lifecycle-driven Codex development with fresh managed-worktree tasks, GitHub rolling waves, exact-SHA admission and human-authorized merges." />
     <meta name="theme-color" content="#0b0f17" />
     <title>Codex Automation Guide v2</title>
   </head>
@@ -39,16 +39,16 @@ const docs = [
       <section class="hero section">
         <div class="hero-copy">
           <p class="eyebrow">Lifecycle-driven development</p>
-          <h1>Plan the product globally. Deliver it one verified wave at a time.</h1>
-          <p class="lede">A GitHub-native operating kit for Canonical Briefs, phase gates, native Issue hierarchy, isolated TDD Workers, bug feedback, and a strict admission gate before any pull request.</p>
+          <h1>Plan globally. Give every accepted Issue a fresh execution context.</h1>
+          <p class="lede">A GitHub-native kit for stable Issue plans, one Orchestrator per wave, one managed-worktree Worker task per leaf, independent admission, exact-SHA human authorization, and post-merge proof.</p>
           <div class="actions">
             <a class="button primary" href={`${base}docs/quickstart/`}>Start Quickstart</a>
             <a class="button secondary" href={repoUrl}>View repository</a>
           </div>
           <dl class="signals">
             <div><dt>Wave</dt><dd>≤ 5 leaf Issues</dd></div>
-            <div><dt>Writers</dt><dd>≤ 2 Workers</dd></div>
-            <div><dt>PR</dt><dd>Admission PASS first</dd></div>
+            <div><dt>Writers</dt><dd>≤ 2 disjoint</dd></div>
+            <div><dt>Done</dt><dd>Post-merge PASS</dd></div>
           </dl>
         </div>
 
@@ -62,8 +62,8 @@ const docs = [
       <section class="section lifecycle-section">
         <div class="section-heading">
           <p class="eyebrow">One lifecycle</p>
-          <h2>Automation expands only after the product contract is approved.</h2>
-          <p>Humans approve the brief, roadmap, phase boundaries, high-risk choices, and merge. Agents execute ordinary approved work and stop fail-closed when evidence is incomplete.</p>
+          <h2>Automation expands only after the exact contract is approved.</h2>
+          <p>Humans approve the brief, wave revision, phase boundaries, high-risk choices, and exact PR/head SHA. Agents execute and reconcile ordinary approved work, then stop fail-closed when evidence changes.</p>
         </div>
         <ol class="phase-track">
           {phases.map((phase, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><strong>{phase}</strong></li>)}
@@ -101,30 +101,9 @@ scripts/install-kit.sh --target /path/to/repo --upgrade</code></pre>
         </div>
       </section>
 
-      <section class="section prompt-section">
-        <div class="section-heading">
-          <p class="eyebrow">Copy-paste start</p>
-          <h2>Begin with Discovery, not a backlog.</h2>
-        </div>
-        <div class="prompt-grid">
-          <div class="code-card start-prompt-card">
-            <div class="code-title">Start · English</div>
-            <pre><code>Use $project-brainstorm for &lt;owner/repo&gt;.
-Idea: &lt;idea&gt;.
-Do not create backlog or change code. Produce Canonical Brief Packet v2, docs/product/canonical.md, material open decisions, and an approval checklist.</code></pre>
-          </div>
-          <div class="code-card continue-prompt-card">
-            <div class="code-title">Старт · Русский</div>
-            <pre><code>Используй $project-brainstorm для &lt;owner/repo&gt;.
-Идея: &lt;идея&gt;.
-Не создавай backlog и не меняй код. Подготовь Canonical Brief Packet v2, docs/product/canonical.md, существенные открытые решения и checklist для утверждения.</code></pre>
-          </div>
-        </div>
-      </section>
-
       <section class="section final-cta">
         <p class="eyebrow">Ready to adopt</p>
-        <h2>Keep GitHub durable, agents bounded, and every PR earned by evidence.</h2>
+        <h2>Keep GitHub durable, task context fresh, and every Done state earned by post-merge evidence.</h2>
         <div class="actions"><a class="button primary" href={`${base}docs/quickstart/`}>Open the guide</a></div>
       </section>
     </main>

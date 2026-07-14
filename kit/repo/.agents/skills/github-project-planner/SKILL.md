@@ -1,44 +1,37 @@
 ---
 name: github-project-planner
-description: Convert an approved Canonical Brief into a lifecycle roadmap, GitHub Epic hierarchy, phase dependencies, and a rolling wave of executable leaf Issues. Use for initial project planning, phase-entry planning, continuation planning, backlog decomposition, or Growth waves. Do not use to implement tasks or invent product scope outside the approved brief.
+description: Plan an approved product as an eight-phase lifecycle roadmap and a rolling wave of PR-sized GitHub leaf Issues with stable plan_item_id values, native hierarchy/dependencies, owner layers, conflict keys, validation, and human gates. Use in a fresh read-only task for initial planning or in a new Continuation Planner task for each later wave; never implement code, estimate hours, or mutate GitHub.
 ---
 
 # GitHub Project Planner
 
-Plan globally and detail only the current horizon. Describe every lifecycle phase and Epic, but expand only the current phase into executable Issues. “Plan” never means `git commit` or GitHub mutation.
+Plan Issues, not hours. Work in a fresh read-only Planner task. Read `AGENTS.md`, `docs/product/canonical.md`, `.codex/agent-workflow.json`, repository architecture, validation commands, Design Readiness evidence, and durable GitHub state.
 
-## Inputs
+## Modes
 
-Read `docs/product/canonical.md`, `.codex/agent-workflow.json`, repository architecture and validation commands, design evidence, current GitHub Project state, open Issues, recently closed Issues, and merged PRs.
+- Initial: describe Discovery through Growth, detail only the current phase, and keep the next phase at draft Capability/dependency level.
+- Continuation: reconstruct current state from GitHub and canonical contracts in a fresh task. Do not depend on a prior chat, recreate completed work, or backfill decorative history.
 
-Treat each input as observed only after reading it. If Project, Issue, PR, model-catalog, or repository data cannot be queried, mark that input unknown and stop the affected conclusion instead of inventing state.
+Stop affected conclusions when inputs cannot be inspected. Require approved Canonical Brief and phase entry before proposing an executable wave.
 
-Require human approval for the Canonical Brief before initial planning and for phase entry before materializing a new phase wave.
+## Plan
 
-## Workflow
+1. Define outcomes, Epics, risks, dependencies, entry criteria, and exit criteria for all eight phases.
+2. Use at most `Epic → Capability/Module → Deliverable → Task/Bug`. Native sub-issues determine leaf status.
+3. Assign every item a stable, semantic `plan_item_id`; retain it through materialization and later waves.
+4. Select at most five Ready candidates sized XS–M. Decompose L/XL work first.
+5. Apply the merge-unit rubric in [references/roadmap-packets.md](references/roadmap-packets.md). Every candidate must be independently acceptable as one Issue, one Worker task, one branch, and one PR.
+6. Declare one owner layer, conservative `conflict_keys`, expected touch points, dependencies, integration order, exact targeted/full/integration validation, conditional reviewers, human gates, and out-of-scope.
+7. Serialize work that shares an unstable owner surface. Never manufacture parallelism by omitting a conflict key.
+8. Use Work Type as the portable fallback. Treat organization Issue Types and merge queue as optional until probed.
+9. Return Global Roadmap and Phase Plan packets as proposed writes with a revision.
+10. Request human approval of the exact revision. Do not label anything `agent-ready` and do not mutate GitHub.
 
-1. Verify the product contract is approved and internally consistent.
-2. Build all eight phases: Discovery, Planning, Design, Foundation, MVP, Stabilization, Production, Growth.
-3. Define Epics, outcomes, risks, exit criteria, and cross-phase dependencies for every phase.
-4. Detail the current phase as `Epic → Capability/Module → Deliverable → Task/Bug`, with at most four levels. In Work Type, use Capability for Module and Task for either a parent Deliverable or a leaf Task; native sub-issues determine leaf status.
-5. Keep the next phase at draft Capability/dependency level and later phases at roadmap level.
-6. Select at most five unblocked leaf Issues for the current wave.
-7. Refuse `agent-ready` for any parent, unresolved dependency, or Size L/XL Issue. Decompose L/XL work first.
-8. Preserve native GitHub sub-issues and dependencies as hierarchy/blocking truth. Use comments only to explain them.
-9. Produce packets from [references/roadmap-packets.md](references/roadmap-packets.md).
-10. Request human approval for the global roadmap and phase entry before GitHub mutation.
-11. In continuation mode, infer the current phase from approved evidence, summarize completed phases, and never recreate completed work or backfill historical Issues merely to make the hierarchy look complete.
+## Boundaries
 
-## Planning Rules
+- Do not estimate dates or hours; use Priority, Size, Risk, Iteration, dependencies, and integration order.
+- Do not invent product work outside the Canonical Brief or speculative Bug Issues.
+- Do not claim a model ranking or capability unless the current client exposes and verifies it.
+- Planner approval authorizes Orchestrator to materialize the packet exactly; it does not authorize content changes.
 
-- Express tasks as observable outcomes with acceptance and validation, not agent instructions alone.
-- Make independent Issues PR-sized and ownership-safe.
-- Identify design/security/QA reviewer requirements before Ready.
-- Use organization Issue Types and merge queue only when available; always populate `Work Type` as the portable fallback.
-- Do not create speculative bug Issues. Bugs enter through proven Finding Packets or human reports.
-- When continuing, re-plan from durable GitHub state instead of replaying the original roadmap.
-- Do not claim that a model is strongest or available unless the current client exposes a model catalog that was inspected. Model choice is a user/client setting, not a planning fact.
-
-## Output
-
-Return the Global Roadmap Packet, current Phase Plan Packet, Project field setup/mapping, proposed hierarchy/dependencies, wave selection, and explicit human approval points. Mark each proposed write as `planned`, not completed, until the mutation returns a canonical ID/URL and a read-after-write check verifies hierarchy, dependency, fields, and status.
+Return the roadmap, current Phase Plan, deferred/draft work, known unknowns, and explicit approval points.

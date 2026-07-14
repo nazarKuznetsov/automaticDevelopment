@@ -21,3 +21,5 @@ jobs:
           node-version: 22
       - name: Run configured full validation
         run: node .codex/scripts/run-validation.mjs --scope full
+      - name: Run configured integration validation
+        run: node .codex/scripts/run-validation.mjs --scope integration

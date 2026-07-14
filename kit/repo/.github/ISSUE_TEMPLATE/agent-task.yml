@@ -13,6 +13,13 @@ body:
       label: Work Type
       options: [Epic, Capability, Task, Bug, Docs, Automation, Refactor]
     validations: { required: true }
+  - type: input
+    id: plan_item_id
+    attributes:
+      label: Plan Item ID
+      description: Stable Planner ID retained when the GitHub Issue number is assigned.
+      placeholder: "mvp.core-journey.export-report"
+    validations: { required: true }
   - type: dropdown
     id: phase
     attributes:
@@ -51,6 +58,12 @@ body:
       description: Observable user or repository outcome.
     validations: { required: true }
   - type: textarea
+    id: merge_outcome
+    attributes:
+      label: Merge Outcome
+      description: The independently acceptable result delivered by one branch and one PR.
+    validations: { required: true }
+  - type: textarea
     id: acceptance
     attributes:
       label: Acceptance Criteria
@@ -70,6 +83,19 @@ body:
     attributes:
       label: Validation Expectations
       description: Exact targeted, full, browser, or manual checks.
+    validations: { required: true }
+  - type: textarea
+    id: integration_validation
+    attributes:
+      label: Integration Validation
+      description: Exact checks proving compatibility with adjacent modules and integration order.
+    validations: { required: true }
+  - type: input
+    id: integration_order
+    attributes:
+      label: Integration Order
+      description: Positive sequence number within the approved wave.
+      placeholder: "1"
     validations: { required: true }
   - type: textarea
     id: primary_signal
@@ -102,10 +128,35 @@ body:
       placeholder: "TDD required, or docs/config exemption with reason."
     validations: { required: true }
   - type: textarea
-    id: tracing
+    id: owner_layer
     attributes:
-      label: Repository Tracing
-      description: Owning layer and coupled callers/contracts/tests/docs to inspect.
+      label: Owner Layer
+      description: The single layer that owns the behavior and the first place to fix it.
+    validations: { required: true }
+  - type: textarea
+    id: conflict_keys
+    attributes:
+      label: Conflict Keys
+      description: Comma-separated unstable surfaces used to serialize overlapping Workers.
+      placeholder: "frontend-router, request-contract"
+    validations: { required: true }
+  - type: textarea
+    id: touch_points
+    attributes:
+      label: Expected Touch Points
+      description: Expected files, components, contracts, migrations, tests, and docs.
+    validations: { required: true }
+  - type: textarea
+    id: reviewers
+    attributes:
+      label: Conditional Reviewers
+      description: Always reviewer, QA, and admission-reviewer; add design/security when applicable.
+    validations: { required: true }
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of Scope
+      description: Explicit nearby work that must not enter this branch.
     validations: { required: true }
   - type: textarea
     id: human_gates

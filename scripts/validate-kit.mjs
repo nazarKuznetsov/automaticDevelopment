@@ -71,6 +71,22 @@ const workflow = JSON.parse(readFileSync(join(kitRoot, ".codex", "agent-workflow
 if (workflow.schema_version !== 2 || workflow.execution.max_workers !== 2 || workflow.execution.wave_limit !== 5 || workflow.execution.duplicate_lookback_days !== 90 || workflow.execution.heartbeat_minutes !== 20) {
   fail("workflow defaults drifted");
 }
+if (workflow.execution.orchestrator_scope !== "wave"
+  || workflow.execution.task_strategy !== "fresh_top_level_per_leaf"
+  || workflow.execution.worker_environment !== "managed_worktree"
+  || workflow.execution.forbid_worker_fork !== true
+  || workflow.execution.parallelism_policy !== "disjoint_conflict_keys"
+  || workflow.execution.subagent_max_depth !== 1
+  || workflow.execution.max_active_subagents_per_worker !== 2
+  || workflow.execution.claim_stale_after_missed_heartbeats !== 3
+  || workflow.merge?.mode !== "human_approval_then_orchestrator"
+  || workflow.merge?.approval_binding !== "pr_and_head_sha"
+  || workflow.merge?.automatic_low_risk_merge !== false) {
+  fail("wave/task/merge workflow defaults drifted");
+}
+for (const agent of ["planner", "reviewer", "qa", "admission-reviewer", "security-reviewer", "design-reviewer"]) {
+  if (!existsSync(join(kitRoot, ".codex", "agents", `${agent}.toml`))) fail(`missing custom agent: ${agent}`);
+}
 
 const readiness = readFileSync(join(kitRoot, ".github", "workflows", "readiness-audit.yml"), "utf8");
 for (const needle of ["removeLabel", "updateComment", "subIssues", "readiness-audit.cjs"]) {

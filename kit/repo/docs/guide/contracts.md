@@ -1,46 +1,42 @@
 ---
 title: Contracts
-description: Canonical files, machine configuration, and versioned packet schemas.
+description: Product contract, secret-free machine config, packet schemas, and evidence semantics.
 order: 10
 slug: contracts
 ---
 
 # Public contracts
 
-Workflow v2 has three kinds of durable interface.
+## Canonical product contract
 
-## Product contract
-
-`docs/product/canonical.md` is human-readable and approved. It defines goal, audience, problem, scenarios, MVP scope/non-goals, design references, architecture constraints, quality bar, risks, release criteria, assumptions, and open decisions.
+`docs/product/canonical.md` defines goal, audience, scenarios, MVP/non-goals, design references, architecture constraints, quality bar, risks, assumptions, release criteria, open decisions, and approved revision.
 
 ## Machine contract
 
-`.codex/agent-workflow.json` is versioned, repository-scoped, and secret-free. It contains GitHub/Project metadata, fields, validation commands, branch CI, concurrency, heartbeat, baseline policy, and gates. `configured: false` is fail-closed. Set it true only after live verification.
+`.codex/agent-workflow.json` is versioned, repository-scoped, and secret-free. It defines Project metadata, exact validation, wave-scoped fresh-task execution, managed worktrees, disjoint conflict-key parallelism, single write owner, depth/concurrency limits, heartbeat/stale claims, baseline, gates, and exact-SHA merge policy.
+
+Never store tokens, secrets, device-local Project IDs, canonical task IDs as configuration, or absolute worktree paths. Discover saved-project/task/worktree capability at runtime. `configured: false` fails closed.
 
 ## Packet schemas
 
-Schemas live in `.codex/schemas/v2/`:
+`.codex/schemas/v2/` contains:
 
-- Canonical Brief;
-- Global Roadmap and Phase Plan;
-- Design Readiness;
-- Worker;
-- Finding;
-- Pre-PR Admission;
-- Worker Completion;
-- Phase Exit;
-- Human Action Required.
+- Canonical Brief, Global Roadmap, Phase Plan, and Design Readiness;
+- Orchestrator Start and Plan Materialization Report;
+- Orchestrator State/Handoff and Wave Completion;
+- Worker and Surface Update;
+- Finding and Human Action Required;
+- Pre-PR Admission and Worker Completion;
+- Merge Authorization and Phase Exit.
 
-Packets include `schema_version: 2` and a fixed `packet_type`. Store orchestration evidence in Issue/PR comments or GitHub fields. Local admission markers and temporary evidence belong under the Git directory or scratch storage and must not be committed.
+Task/worktree IDs may appear in GitHub evidence; absolute local filesystem paths may not. Packets use `schema_version: 2` and a fixed `packet_type`.
 
-## Evidence semantics
+## Truth and identity
 
-Use four truth states consistently: `observed` (read directly), `inferred` (derived from cited observations), `planned` (not executed), and `unknown` (not verifiable). Do not silently promote one state to another.
+Use `observed`, `inferred`, `planned`, and `unknown`. A write becomes observed only after a canonical ID/URL/result and read-after-write. A queued client ID remains `CREATING`; launch requires matching canonical task and managed-worktree identifiers/state.
 
-A command, GitHub mutation, task/worktree creation, schedule, approval, or review is complete only when it returns a traceable result—such as an exact command/exit status, canonical URL/ID, commit SHA, run/artifact, or named human decision—and the owning state is read back when mutation is involved. A tool description proves that a capability exists in principle; only a present tool plus a successful probe proves it is available in the current environment.
-
-Independent review cannot be simulated inside the Worker context. It requires a distinct task/thread/agent identifier or a named human, exact SHA binding, and inspectable evidence. If any required fact cannot be verified, the packet says `unknown`, `FAIL`, or `BLOCKED`; plausible filler is invalid evidence.
+Independent Worker, reviewer, QA, admission, and high-risk sources have distinct task/human IDs and exact SHA evidence. Admission preserves separate QA and deterministic-gate tracked-tree evidence. Merge authorization binds repository, PR, head/base SHA, and an immutable admission report digest. Post-merge PASS binds merge readback and CI to the resulting merge commit. Agent prose, role labels, tool descriptions, and copied PASS strings are not external evidence. Unknown required facts fail closed.
 
 ## Compatibility
 
-Existing skill names `github-agent-orchestrator` and `github-agent-worker` remain stable. Status migration maps `Intake → Backlog`; compatible existing statuses remain. Add fields without deleting existing Project data. Personal repositories use Work Type; organization repositories may additionally use native Issue Types and merge queue only after those repository capabilities are verified.
+Skill names `github-agent-orchestrator` and `github-agent-worker` stay stable. Status migration maps `Intake → Backlog`; compatible data remains. Personal repositories use Work Type; organization Issue Types and merge queue are optional after verification.

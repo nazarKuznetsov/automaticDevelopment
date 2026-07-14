@@ -4,8 +4,10 @@
   "files": [
     { "path": ".agents/skills/github-agent-orchestrator/SKILL.md", "ownership": "managed" },
     { "path": ".agents/skills/github-agent-orchestrator/agents/openai.yaml", "ownership": "managed" },
+    { "path": ".agents/skills/github-agent-orchestrator/references/orchestrator-state-machine.md", "ownership": "managed" },
     { "path": ".agents/skills/github-agent-worker/SKILL.md", "ownership": "managed" },
     { "path": ".agents/skills/github-agent-worker/agents/openai.yaml", "ownership": "managed" },
+    { "path": ".agents/skills/github-agent-worker/references/worker-runtime.md", "ownership": "managed" },
     { "path": ".agents/skills/github-pre-pr-reviewer/SKILL.md", "ownership": "managed" },
     { "path": ".agents/skills/github-pre-pr-reviewer/agents/openai.yaml", "ownership": "managed" },
     { "path": ".agents/skills/github-pre-pr-reviewer/references/admission-report.md", "ownership": "managed" },
@@ -16,6 +18,7 @@
     { "path": ".agents/skills/project-brainstorm/agents/openai.yaml", "ownership": "managed" },
     { "path": ".agents/skills/project-brainstorm/references/canonical-brief-packet.md", "ownership": "managed" },
     { "path": ".codex/agent-workflow.json", "ownership": "host" },
+    { "path": ".codex/agents/admission-reviewer.toml", "ownership": "managed" },
     { "path": ".codex/agents/design-reviewer.toml", "ownership": "managed" },
     { "path": ".codex/agents/planner.toml", "ownership": "managed" },
     { "path": ".codex/agents/qa.toml", "ownership": "managed" },
@@ -28,9 +31,15 @@
     { "path": ".codex/schemas/v2/finding.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/global-roadmap.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/human-action-required.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/merge-authorization.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/orchestrator-start.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/orchestrator-state-handoff.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/phase-exit.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/phase-plan.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/plan-materialization-report.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/pre-pr-admission.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/surface-update.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/wave-completion.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/worker-completion.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/worker.schema.json", "ownership": "managed" },
     { "path": ".codex/scripts/pre-pr-gate.mjs", "ownership": "managed" },
@@ -57,6 +66,7 @@
     { "path": "docs/guide/quickstart.md", "ownership": "managed" },
     { "path": "docs/guide/troubleshooting.md", "ownership": "managed" },
     { "path": "docs/guide/worker-tdd.md", "ownership": "managed" },
+    { "path": "docs/guide/assets/task-topology.svg", "ownership": "managed" },
     { "path": "docs/product/canonical.md", "ownership": "host" }
   ]
 }

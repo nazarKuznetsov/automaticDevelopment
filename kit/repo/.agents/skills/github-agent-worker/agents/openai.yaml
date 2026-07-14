@@ -1,4 +1,4 @@
 interface:
   display_name: "GitHub Agent Worker"
-  short_description: "Deliver one Issue through TDD and admission"
-  default_prompt: "Use $github-agent-worker to deliver this Worker Packet without creating a PR before admission PASS."
+  short_description: "Deliver one leaf as the sole write owner"
+  default_prompt: "Use $github-agent-worker in this fresh managed-worktree task to deliver exactly one approved leaf through TDD and independent admission."

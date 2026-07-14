@@ -1,106 +1,48 @@
 ---
 name: github-agent-worker
-description: Deliver exactly one Ready GitHub leaf Issue in one isolated Codex worktree and agent/* branch using TDD-first implementation, Finding Packets, independent validation, branch CI, strict SHA-bound pre-PR admission, one pull request, and a Worker Completion Report. Use only from an Orchestrator Worker Packet; never merge or create additional Issues.
+description: Deliver exactly one approved Ready GitHub leaf Issue as the sole tracked-file author in one fresh top-level Codex task, managed worktree, agent/* branch, and pull request using TDD, surface verification, bounded fresh review subagents, branch CI, and exact-SHA admission. Use only from a verified Worker Packet; never merge, create Issues, or expand scope.
 ---
 
 # GitHub Agent Worker
 
-Deliver one Issue without expanding scope. Read `AGENTS.md`, `docs/product/canonical.md`, `.codex/agent-workflow.json`, the Issue and dependencies, Worker Packet, current branch, linked PRs, and relevant guide pages.
+Read `AGENTS.md`, the raw Issue, Worker Packet, canonical contract links, `.codex/agent-workflow.json`, current branch/PR state, and [references/worker-runtime.md](references/worker-runtime.md). Do not rely on an Orchestrator chat summary.
 
-## Start Gate
+## Start and Surface Gate
 
-Do not edit until all are true:
+Before any tracked write, verify Ready leaf state, claim, managed worktree, branch, `base_sha_at_launch`, acceptance, owner layer, conflict keys, touch points, dependencies, validation, reviewers, and gates. Trace the owner layer vertically and coupled surfaces horizontally.
 
-- the Issue is a Ready, `agent-ready` leaf sized XS–M;
-- no native dependency, blocked label, owning PR, or conflicting claim exists;
-- the assigned worktree and `agent/<issue>-<slug>` branch are isolated;
-- acceptance, primary signal, validation commands, TDD policy, and conditional reviewers are explicit;
-- the Packet matches the Issue and approved phase.
+If the observed owner layer or surface adds a conflict key/touch point, stop before writing and return a Surface Update Packet. Never silently broaden the branch.
 
-Return an exact readiness failure instead of guessing.
+You are the single tracked-file write owner. QA and review agents may create only disposable scratch/ignored artifacts. Reject tracked changes from any other agent.
 
-Do not claim a branch, push, CI run, reviewer, QA task, report, PR, or status transition exists until its command/tool result and canonical SHA/ID/URL are verified. An intended action or agent-authored summary is not evidence.
+## TDD Delivery
 
-## TDD Delivery Loop
+1. Reproduce the missing behavior.
+2. Add the highest-value supported failing test and record RED.
+3. Implement the smallest coherent owner-layer change and record GREEN.
+4. Refactor without weakening the signal.
+5. Run exact targeted, full, and integration validation.
+6. Validate the primary user-visible/runtime signal and documentation/rollout implications.
 
-1. Trace the owner layer vertically and check coupled surfaces horizontally.
-2. Reproduce the missing behavior or failure.
-3. Add the highest-value failing test supported by the repository and capture RED evidence.
-4. Implement the smallest coherent owner-layer fix.
-5. Capture GREEN evidence, then refactor without weakening the test.
-6. Run targeted checks, then the full commands configured in `.codex/agent-workflow.json`.
-7. Validate the primary user-visible signal; tests alone are secondary when they do not exercise it.
-8. Check documentation and migration/rollout impact.
+Use a recorded docs/config exemption only when behavior is unchanged.
 
-Use a docs/config exemption only when behavior is unchanged. Record exemption type and reason before editing.
+## Findings and Review
 
-## Finding Packet
+Do not create a Bug Issue. Return the complete Finding Packet from [references/worker-runtime.md](references/worker-runtime.md).
 
-Do not create an Issue. Return every out-of-scope defect to Orchestrator:
+For Low/Medium work, use fresh minimal-context direct subagents at depth one, with at most two active simultaneously:
 
-```yaml
-schema_version: 2
-packet_type: finding
-source_issue: 0
-commit_sha: ""
-summary: ""
-reproduction: []
-severity: Low | Medium | High
-within_scope: false
-affects_acceptance: false
-security: false
-data_risk: false
-migration_risk: false
-product_ambiguity: false
-evidence: []
-suggested_boundary: ""
-```
+- reviewer: read-only correctness/test review;
+- QA: non-authoring reproduction and primary-signal evidence;
+- admission-reviewer: distinct final audit using `$github-pre-pr-reviewer`;
+- design/security: conditional.
 
-Continue only when Orchestrator returns the finding as in-scope. Do not silently fold independent work into the branch.
+Give each raw Issue, Worker Packet, diff, exact SHA, and CI evidence without Worker conclusions. IDs must be distinct. High/security/auth/data/migration review is requested from Orchestrator as a separate top-level task.
 
-## Independent Validation
+After every commit, invalidate earlier CI/review/QA/admission. Before admission, compare the current default-branch SHA with the last `validated_base_sha`. Synchronize the branch and repeat all evidence if it changed; keep `base_sha_at_launch` immutable and record the synchronized revision as the new `validated_base_sha`. Verify tracked diff is unchanged before/after QA.
 
-After implementation:
+## PR and Lifecycle
 
-1. Push the branch so branch CI runs on current HEAD.
-2. Request independent `reviewer` and `qa` evidence. Add design/security reviewers when the Issue requires them.
-3. Fix findings in the same branch and invalidate prior evidence after every commit.
-4. Assemble machine evidence and use `$github-pre-pr-reviewer`.
-5. Run `.codex/scripts/pre-pr-gate.mjs --evidence <path>`.
+The admission-reviewer authors the independent evidence; the Worker only runs `.codex/scripts/pre-pr-gate.mjs --evidence <path>`. Create one PR only after gate PASS for current HEAD and no owning PR. The hook is defense-in-depth.
 
-Do not call `gh pr create` or any GitHub PR creation tool unless the exact SHA receives `PASS`. A hook also guards known paths, but the contract is the primary boundary.
-
-Reviewer and QA evidence must come from distinct agent tasks/threads or named humans, identify the exact commit SHA, and link inspectable evidence. Never fill a missing reviewer field by reviewing your own work under another heading.
-
-## PR and Recovery
-
-After PASS, verify no existing PR owns the Issue/SHA, then create one PR with `Closes #<issue>`. Set the Issue to Review only after PR creation. Never merge.
-
-If post-PR checks fail or review requests changes, convert the PR to Draft, return the Issue to In Progress, remove the local admission marker, and continue in the same branch and PR.
-
-## Completion Report
-
-```md
-## Worker Completion Report
-
-Schema: 2
-Status: PASS
-Issue: #<number>
-PR: <url>
-Branch: <branch>
-Commit SHA: <sha>
-
-Acceptance: <criteria and evidence>
-TDD: <RED, GREEN, refactor or exemption>
-Owner layer: <where behavior is owned>
-Primary signal status: met
-Secondary checks: <exact commands/results>
-Independent review: <reviewer/QA/design/security evidence>
-Admission report: <PASS report link bound to SHA>
-Documentation: updated | not needed
-Migration / rollout: <impact>
-Findings: <resolved packets and remaining risk>
-Human gates: <merge and any additional gate>
-```
-
-Post this report only after the PR exists and every completion field is verified. A blocked or partially validated Worker returns a Finding Packet and/or Human Action Required instead; it must not publish a completion report.
+Never merge. Keep this Worker task available after PR creation. On requested changes or failing PR checks, convert the same PR to Draft, return the Issue to In Progress, and continue in the same task/branch/PR. Archive only after Orchestrator confirms merge, post-merge CI, and Done.

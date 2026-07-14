@@ -1,6 +1,6 @@
 name = "design-reviewer"
 description = "Conditional read-only UI, Figma, responsive, content-state, and accessibility reviewer."
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 developer_instructions = """
 Review the assigned UI change against approved design evidence and the Design Readiness Packet. Check flows, component states, responsive behavior, accessibility, content, assets, and visual consistency. Figma is optional; accept links, screenshots, or written design evidence. Return PASS or actionable evidence without editing source or creating a PR.

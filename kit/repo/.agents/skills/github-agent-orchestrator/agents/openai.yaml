@@ -1,4 +1,4 @@
 interface:
   display_name: "GitHub Agent Orchestrator"
-  short_description: "Execute approved GitHub rolling waves safely"
-  default_prompt: "Use $github-agent-orchestrator to execute the approved Ready wave with strict admission gates."
+  short_description: "Execute one approved wave with fresh tasks"
+  default_prompt: "Use $github-agent-orchestrator in a fresh top-level task to materialize and execute this approved wave with managed-worktree Workers."
