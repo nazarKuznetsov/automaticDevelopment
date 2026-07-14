@@ -28,7 +28,12 @@ Test the heartbeat prompt manually before scheduling it. Scheduled runs use unat
 
 ## Repository protections
 
-Require branch validation on `agent/**` and repeat relevant checks on PR/default branch. Configure rulesets for required checks, human review, and resolved conversations. Merge queue may replace manual base synchronization only after its availability and behavior are verified in an organization repository.
+Require branch validation on `agent/**` and repeat relevant checks on PR/default branch. This repository's canonical PR check names are:
+
+- `PR Validation / quality`;
+- `PR Validation / visual`.
+
+After both names have completed successfully at least once, configure the `main` ruleset to require both, require the branch to be up to date before merge, require resolved conversations, and block merge while either check is pending or failing. Do not mutate the ruleset without separate human approval. Merge queue may replace manual base synchronization only after its availability and behavior are verified in an organization repository.
 
 ## Dogfood pilot
 

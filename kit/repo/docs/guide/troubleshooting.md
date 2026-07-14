@@ -7,6 +7,18 @@ slug: troubleshooting
 
 # Troubleshooting
 
+## Root PR validation did not start
+
+Confirm the PR targets `main`, Actions are enabled, `.github/workflows/pr-validation.yml` exists on the PR head, and the workflow is not skipped or disabled in the repository Actions UI. Use `workflow_dispatch` only to diagnose the same committed workflow; a manual local PASS does not replace the missing PR checks.
+
+## Production preview is unavailable in `PR Validation / visual`
+
+Open the failed step and inspect `preview.log`. Verify the production build succeeded, the preview process stayed alive, and `http://127.0.0.1:4173/automaticDevelopment/` returned a successful response before Chromium ran. Keep the check failed until the URL is genuinely reachable; do not bypass the readiness loop.
+
+## Visual failure artifacts are missing
+
+The failed visual job must upload `pr-visual-failure-<run>-<attempt>` from `test-results/`. If no artifact exists, inspect the artifact-upload step: `if-no-files-found: error` should keep the job failed. Restore preview/browser logs and screenshots rather than accepting a result without visual evidence.
+
 ## `agent-ready` keeps disappearing
 
 Read the single `Agent readiness audit` comment. Fill real Issue Form values, decompose Epic/Capability or L/XL work, remove `blocked`, and let Orchestrator verify native dependencies and Project Ready status before restoring the label.

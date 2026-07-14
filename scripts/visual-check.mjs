@@ -48,6 +48,11 @@ try {
   if (!title?.includes("Plan globally")) {
     throw new Error("Desktop hero heading did not render expected text.");
   }
+  const quickstartHref = await desktop.locator("a", { hasText: "Start Quickstart" }).getAttribute("href");
+  const expectedQuickstart = new URL("docs/quickstart/", url).pathname;
+  if (!quickstartHref || new URL(quickstartHref, url).pathname !== expectedQuickstart) {
+    throw new Error(`Quickstart CTA points to ${quickstartHref ?? "nothing"}; expected ${expectedQuickstart}.`);
+  }
   const codeBlockCount = await desktop.locator("pre > code").count();
   const copyButtonCount = await desktop.locator(".copy-code-button").count();
   if (codeBlockCount < 1 || copyButtonCount !== codeBlockCount) {

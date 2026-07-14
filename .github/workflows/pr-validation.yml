@@ -1,0 +1,123 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+  visual:
+    name: visual
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Prepare visual evidence
+        run: mkdir -p test-results
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee test-results/playwright-install.log
+
+      - name: Build production site
+        run: npm run build
+
+      - name: Validate production preview
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          port=4173
+          preview_url="http://127.0.0.1:${port}/automaticDevelopment/"
+          npm run preview -- --host 127.0.0.1 --port "${port}" > test-results/preview.log 2>&1 &
+          preview_pid=$!
+          echo "${preview_pid}" > test-results/preview.pid
+
+          cleanup() {
+            if kill -0 "${preview_pid}" 2>/dev/null; then
+              kill "${preview_pid}" 2>/dev/null || true
+            fi
+            wait "${preview_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          preview_ready=false
+          for attempt in {1..30}; do
+            if ! kill -0 "${preview_pid}" 2>/dev/null; then
+              echo "Production preview exited before becoming available." >&2
+              cat test-results/preview.log >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error "${preview_url}" > test-results/preview-response.html; then
+              preview_ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "${preview_ready}" != "true" ]]; then
+            echo "Production preview did not become available at ${preview_url}." >&2
+            cat test-results/preview.log >&2
+            exit 1
+          fi
+
+          PREVIEW_URL="${preview_url}" npm run test:visual
+          test -s test-results/desktop.png
+          test -s test-results/mobile.png
+          test -s test-results/preview.log
+
+      - name: Upload visual failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-visual-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 7

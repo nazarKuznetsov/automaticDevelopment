@@ -24,6 +24,8 @@ npm run preview
 PREVIEW_URL=http://127.0.0.1:4321/automaticDevelopment/ npm run test:visual
 ```
 
+Every pull request targeting `main` runs the remote required-check candidates `PR Validation / quality` and `PR Validation / visual`. Quality covers tests, repository checks, and the production build; visual starts the production preview and verifies it with Chromium.
+
 ## Install into a target repository
 
 ```bash
