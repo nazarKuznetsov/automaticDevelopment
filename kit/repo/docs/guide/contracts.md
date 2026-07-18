@@ -31,6 +31,10 @@ Never store tokens, secrets, device-local Project IDs, canonical task IDs as con
 
 Task/worktree IDs may appear in GitHub evidence; absolute local filesystem paths may not. Packets use `schema_version: 2` and a fixed `packet_type`.
 
+Global Roadmap and Phase Plan are indivisible machine contracts, not prose templates. Every materializable item has an exact title and complete Project metadata; every dependency has typed `blocking`/`blocked` IDs; the Phase Plan selects its durable report parent. Both packets carry deterministic content digests, and human approval binds exact revisions/digests plus a named identity. The Orchestrator must recompute and validate both before writes.
+
+The Start Packet has two fail-closed modes. `materialization_only` may cover the complete approved item set but grants zero Worker authority and accepts an empty Ready wave. `wave_execution` covers exactly one to five approved Ready leaves with matching conflict keys. A Plan Materialization Report binds both contracts and is PASS only after exact mapping, Project field readback, applicable native relationship readback, and a durable comment URL on the preselected parent Issue.
+
 ## Truth and identity
 
 Use `observed`, `inferred`, `planned`, and `unknown`. A write becomes observed only after a canonical ID/URL/result and read-after-write. A queued client ID remains `CREATING`; launch requires matching canonical task and managed-worktree identifiers/state.

@@ -1,4 +1,4 @@
 interface:
   display_name: "GitHub Agent Orchestrator"
-  short_description: "Execute one approved wave with fresh tasks"
-  default_prompt: "Use $github-agent-orchestrator in a fresh top-level task to materialize and execute this approved wave with managed-worktree Workers."
+  short_description: "Materialize or execute an approved plan safely"
+  default_prompt: "Use $github-agent-orchestrator in a fresh top-level task to validate and exactly materialize the approved digest-bound contracts in the authorized Start Packet mode; create Workers only in wave_execution."

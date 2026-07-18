@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const PHASES = [
   "Discovery",
   "Planning",
@@ -49,6 +51,19 @@ function hasStringList(value, { min = 1, max = Number.POSITIVE_INFINITY } = {}) 
 }
 
 const CONFLICT_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
+const PLAN_ITEM_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+const PROJECT_FIELDS = ["phase", "work_type", "priority", "size", "risk", "qa_required", "status"];
+const MATERIALIZATION_STATUSES = new Set(["Backlog", "Ready"]);
+const PROJECT_FIELD_VALUES = {
+  phase: new Set(PHASES),
+  work_type: new Set(["Epic", "Capability", "Task", "Bug", "Docs", "Automation", "Refactor"]),
+  priority: new Set(["P0", "P1", "P2", "P3"]),
+  size: new Set(["XS", "S", "M", "L", "XL"]),
+  risk: new Set(["Low", "Medium", "High"]),
+  qa_required: new Set(["Yes", "No"]),
+  status: MATERIALIZATION_STATUSES,
+};
 
 function validConflictKeys(value) {
   return hasStringList(value)
@@ -69,6 +84,276 @@ function planItemId(phase, candidate) {
   if (hasText(candidate.plan_item_id)) return candidate.plan_item_id;
   const stablePart = slug(candidate.title ?? candidate.id);
   return stablePart ? `${slug(phase)}.${stablePart}` : "";
+}
+
+function canonicalPacketValue(value) {
+  if (Array.isArray(value)) return value.map((item) => canonicalPacketValue(item));
+  if (!value || typeof value !== "object") return value;
+  const result = {};
+  for (const key of Object.keys(value).sort()) {
+    if (key === "packet_digest" || key === "approval" || key === "human_approvals") continue;
+    result[key] = canonicalPacketValue(value[key]);
+  }
+  return result;
+}
+
+export function packetDigest(packet) {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalPacketValue(packet)))
+    .digest("hex");
+}
+
+function roadmapItems(roadmap) {
+  return (roadmap?.phases ?? []).flatMap((phase) => (phase.epics ?? []).map((epic) => ({
+    ...epic,
+    phase: phase.phase,
+    parent_plan_item_id: null,
+  })));
+}
+
+function materializationItems(contracts) {
+  const items = new Map();
+  for (const item of [...roadmapItems(contracts?.global_roadmap), ...(contracts?.phase_plan?.hierarchy ?? [])]) {
+    if (!hasText(item?.plan_item_id)) continue;
+    items.set(item.plan_item_id, { ...(items.get(item.plan_item_id) ?? {}), ...item });
+  }
+  return [...items.values()];
+}
+
+function materializationDependencies(contracts) {
+  const dependencies = [
+    ...(contracts?.global_roadmap?.phases ?? []).flatMap((phase) => phase.dependencies ?? []),
+    ...(contracts?.phase_plan?.dependencies ?? []),
+  ];
+  const unique = new Map();
+  for (const dependency of dependencies) {
+    unique.set(`${dependency?.blocking}>${dependency?.blocked}`, dependency);
+  }
+  return [...unique.values()];
+}
+
+function itemMetadataMatches(left, right) {
+  return left?.title === right?.title
+    && PROJECT_FIELDS.every((field) => left?.[field] === right?.[field]);
+}
+
+export function validatePlanContracts(contracts, { require_approval = true } = {}) {
+  const blockers = [];
+  const roadmap = contracts?.global_roadmap;
+  const phasePlan = contracts?.phase_plan;
+  if (!roadmap || roadmap.packet_type !== "global_roadmap") blockers.push("Missing Global Roadmap Packet.");
+  if (!phasePlan || phasePlan.packet_type !== "phase_plan") blockers.push("Missing Phase Plan Packet.");
+  if (blockers.length > 0) return { valid: false, blockers };
+
+  if (roadmap.schema_version !== 2 || phasePlan.schema_version !== 2) blockers.push("Plan contracts require schema_version 2.");
+  if (!hasText(roadmap.revision)) blockers.push("Global Roadmap requires an exact revision.");
+  if (!hasText(roadmap.canonical_brief_revision)) blockers.push("Global Roadmap requires the approved Canonical Brief revision.");
+  if (!DIGEST_PATTERN.test(roadmap.packet_digest ?? "") || roadmap.packet_digest !== packetDigest(roadmap)) {
+    blockers.push("Global Roadmap packet digest is missing or stale.");
+  }
+  if (roadmap.human_approvals?.roadmap?.revision !== roadmap.revision
+    || roadmap.human_approvals.roadmap.packet_digest !== roadmap.packet_digest) {
+    blockers.push("Global Roadmap approval must bind the exact revision and digest.");
+  }
+  if (require_approval && roadmap.human_approvals?.roadmap?.status !== "APPROVED") {
+    blockers.push("Global Roadmap requires human approval before materialization.");
+  }
+  if (require_approval && !hasText(roadmap.human_approvals?.roadmap?.approved_by)) {
+    blockers.push("Global Roadmap approval requires a named human identity.");
+  }
+  if (require_approval
+    && (roadmap.human_approvals?.current_phase_entry?.status !== "APPROVED"
+      || roadmap.human_approvals.current_phase_entry.phase !== roadmap.current_phase
+      || !hasText(roadmap.human_approvals.current_phase_entry.approved_by))) {
+    blockers.push("Current phase entry requires named human approval for the exact roadmap phase.");
+  }
+  const phaseNames = (roadmap.phases ?? []).map((phase) => phase.phase);
+  if (!sameStringList(phaseNames, PHASES)) blockers.push("Global Roadmap must contain the eight lifecycle phases in canonical order.");
+  for (const phase of roadmap.phases ?? []) {
+    for (const field of ["outcomes", "epics", "risks", "entry_criteria", "exit_criteria"]) {
+      if (!Array.isArray(phase[field]) || phase[field].length === 0) blockers.push(`Roadmap ${phase.phase ?? "<unknown>"} requires non-empty ${field}.`);
+    }
+    if (!Array.isArray(phase.dependencies)) blockers.push(`Roadmap ${phase.phase ?? "<unknown>"} requires typed dependencies.`);
+  }
+
+  if (!hasText(phasePlan.revision)) blockers.push("Phase Plan requires an exact revision.");
+  if (phasePlan.phase !== roadmap.current_phase) blockers.push("Phase Plan phase must match the current roadmap phase.");
+  if (!hasText(phasePlan.iteration)) blockers.push("Phase Plan requires an iteration.");
+  for (const field of ["hierarchy", "dependencies", "ready_wave", "deferred", "phase_exit_evidence"]) {
+    if (!Array.isArray(phasePlan[field])) blockers.push(`Phase Plan requires ${field}.`);
+  }
+  if ((phasePlan.ready_wave ?? []).length > 5) blockers.push("Phase Plan Ready wave cannot exceed five leaves.");
+  if (!DIGEST_PATTERN.test(phasePlan.packet_digest ?? "") || phasePlan.packet_digest !== packetDigest(phasePlan)) {
+    blockers.push("Phase Plan packet digest is missing or stale.");
+  }
+  if (phasePlan.approval?.revision !== phasePlan.revision
+    || phasePlan.approval.packet_digest !== phasePlan.packet_digest) {
+    blockers.push("Phase Plan approval must bind the exact revision and digest.");
+  }
+  if (require_approval && phasePlan.approval?.status !== "APPROVED") {
+    blockers.push("Phase Plan requires human approval before materialization.");
+  }
+  if (require_approval && !hasText(phasePlan.approval?.approved_by)) {
+    blockers.push("Phase Plan approval requires a named human identity.");
+  }
+
+  const allItems = [...roadmapItems(roadmap), ...(phasePlan.hierarchy ?? [])];
+  const byId = new Map();
+  for (const item of allItems) {
+    if (!PLAN_ITEM_PATTERN.test(item?.plan_item_id ?? "")) {
+      blockers.push(`Invalid or missing plan_item_id: ${item?.plan_item_id ?? "<unknown>"}.`);
+      continue;
+    }
+    if (!hasText(item.title)) blockers.push(`Missing exact title for ${item.plan_item_id}.`);
+    for (const field of PROJECT_FIELDS) {
+      if (!hasText(item[field])) blockers.push(`Missing ${field} for ${item.plan_item_id}.`);
+      else if (!PROJECT_FIELD_VALUES[field].has(item[field])) blockers.push(`Invalid ${field} for ${item.plan_item_id}.`);
+    }
+    if (!PHASES.includes(item.phase)) blockers.push(`Invalid phase for ${item.plan_item_id}.`);
+    if (!MATERIALIZATION_STATUSES.has(item.status)) blockers.push(`Invalid materialization status for ${item.plan_item_id}.`);
+    const existing = byId.get(item.plan_item_id);
+    if (existing && !itemMetadataMatches(existing, item)) {
+      blockers.push(`Conflicting title or Project metadata for ${item.plan_item_id}.`);
+    } else if (!existing) {
+      byId.set(item.plan_item_id, item);
+    }
+  }
+
+  const hierarchyIds = new Set((phasePlan.hierarchy ?? []).map((item) => item.plan_item_id));
+  if (hierarchyIds.size !== (phasePlan.hierarchy ?? []).length) {
+    blockers.push("Duplicate Phase Plan hierarchy plan_item_id values are not allowed.");
+  }
+  if (!hierarchyIds.has(phasePlan.materialization_report_parent_plan_item_id)) {
+    blockers.push("Materialization report parent must identify an exact Phase Plan hierarchy item.");
+  }
+  for (const item of phasePlan.hierarchy ?? []) {
+    if (item.parent_plan_item_id && !byId.has(item.parent_plan_item_id)) {
+      blockers.push(`Unknown parent plan item: ${item.parent_plan_item_id}.`);
+    }
+  }
+
+  const dependencies = materializationDependencies(contracts);
+  for (const dependency of dependencies) {
+    if (!PLAN_ITEM_PATTERN.test(dependency?.blocking ?? "") || !byId.has(dependency.blocking)) {
+      blockers.push(`Unknown dependency blocking plan_item_id: ${dependency?.blocking ?? "<unknown>"}.`);
+    }
+    if (!PLAN_ITEM_PATTERN.test(dependency?.blocked ?? "") || !byId.has(dependency.blocked)) {
+      blockers.push(`Unknown dependency blocked plan_item_id: ${dependency?.blocked ?? "<unknown>"}.`);
+    }
+    if (dependency?.blocking === dependency?.blocked) blockers.push(`Self dependency is not allowed: ${dependency.blocking}.`);
+  }
+
+  const readyIds = new Set((phasePlan.ready_wave ?? []).map((item) => item.plan_item_id));
+  if (readyIds.size !== (phasePlan.ready_wave ?? []).length) blockers.push("Duplicate Ready wave plan_item_id values are not allowed.");
+  for (const ready of phasePlan.ready_wave ?? []) {
+    blockers.push(...mergeUnitReasons(ready).map((reason) => `${ready.plan_item_id ?? "<unknown>"}: ${reason}`));
+    const hierarchyItem = (phasePlan.hierarchy ?? []).find((item) => item.plan_item_id === ready.plan_item_id);
+    if (!hierarchyItem || !hasText(hierarchyItem.parent_plan_item_id)) {
+      blockers.push(`Ready leaf ${ready.plan_item_id} must appear in hierarchy with a real parent.`);
+      continue;
+    }
+    if (ready.parent_plan_item_id !== hierarchyItem.parent_plan_item_id) {
+      blockers.push(`Ready leaf ${ready.plan_item_id} parent does not match hierarchy.`);
+    }
+    if (ready.title !== hierarchyItem.title
+      || ["work_type", "priority", "size", "risk", "qa_required"].some((field) => ready[field] !== hierarchyItem[field])) {
+      blockers.push(`Ready leaf ${ready.plan_item_id} metadata does not match its hierarchy item.`);
+    }
+    if (hierarchyItem.status !== "Ready") blockers.push(`Ready leaf ${ready.plan_item_id} must target Project status Ready.`);
+    if (new Set(["L", "XL"]).has(ready.size)) blockers.push(`Ready leaf ${ready.plan_item_id} must be decomposed to XS-M.`);
+    for (const id of ready.dependencies ?? []) {
+      if (!dependencies.some((dependency) => dependency.blocked === ready.plan_item_id && dependency.blocking === id)) {
+        blockers.push(`Ready leaf ${ready.plan_item_id} dependency ${id} is missing from typed dependencies.`);
+      }
+    }
+  }
+  for (const item of phasePlan.hierarchy ?? []) {
+    if (item.status === "Ready" && !readyIds.has(item.plan_item_id)) {
+      blockers.push(`Hierarchy item ${item.plan_item_id} targets Ready but is absent from ready_wave.`);
+    }
+  }
+
+  return { valid: blockers.length === 0, blockers: [...new Set(blockers)] };
+}
+
+export function evaluateOrchestratorStart(contracts, startPacket, { now = new Date().toISOString() } = {}) {
+  const blockers = [];
+  const validation = validatePlanContracts(contracts);
+  if (!validation.valid) blockers.push(...validation.blockers);
+  const roadmap = contracts?.global_roadmap ?? {};
+  const phasePlan = contracts?.phase_plan ?? {};
+  const expectedMaterializationIds = materializationItems(contracts).map((item) => item.plan_item_id).sort();
+  const expectedReadyIds = (phasePlan.ready_wave ?? []).map((item) => item.plan_item_id).sort();
+  const approvedItems = startPacket?.approved_plan_items ?? [];
+  const approvedIds = approvedItems.map((item) => item.plan_item_id).sort();
+  const authorization = startPacket?.authorization ?? {};
+
+  if (startPacket?.schema_version !== 2 || startPacket?.packet_type !== "orchestrator_start") blockers.push("Missing schema_version 2 Orchestrator Start Packet.");
+  if (!hasText(startPacket?.wave_id)) blockers.push("Orchestrator Start requires a stable wave_id.");
+  if (startPacket?.global_roadmap_revision !== roadmap.revision
+    || startPacket?.global_roadmap_digest !== roadmap.packet_digest) {
+    blockers.push("Orchestrator Start does not bind the exact approved Global Roadmap.");
+  }
+  if (startPacket?.phase_plan_revision !== phasePlan.revision
+    || startPacket?.phase_plan_digest !== phasePlan.packet_digest) {
+    blockers.push("Orchestrator Start does not bind the exact approved Phase Plan.");
+  }
+  if (!/^[0-9a-f]{40}$/.test(startPacket?.base_sha ?? "")) blockers.push("Orchestrator Start requires an exact base SHA.");
+  if (!hasText(startPacket?.valid_until) || Number.isNaN(Date.parse(startPacket.valid_until))
+    || Date.parse(startPacket.valid_until) <= Date.parse(now)) {
+    blockers.push("Orchestrator Start authorization is missing, invalid, or expired.");
+  }
+  if (authorization.status !== "APPROVED" || !hasText(authorization.approved_by)) {
+    blockers.push("Orchestrator Start requires a named human approval.");
+  }
+  if (authorization.merge_requires_exact_sha_authorization !== true) {
+    blockers.push("Merge must remain separately gated by exact PR and head SHA authorization.");
+  }
+
+  if (startPacket?.mode === "materialization_only") {
+    if (approvedItems.length < 1 || approvedItems.length > 100) blockers.push("Materialization-only Start must approve one to 100 items.");
+    if (expectedReadyIds.length > 0) blockers.push("A materialization-only start requires an empty approved Ready wave.");
+    if (!sameStringList(approvedIds, expectedMaterializationIds)) {
+      blockers.push("Materialization-only approved plan items must exactly match every approved materialization item.");
+    }
+    const noWorkerAuthority = authorization.create_top_level_worker_tasks === false
+      && authorization.managed_worktrees === false
+      && authorization.max_worker_launches === 0
+      && authorization.max_concurrent_write_workers === 0
+      && authorization.monitor_and_steer === false
+      && authorization.archive_after_done === false
+      && authorization.create_high_risk_review_tasks === false;
+    if (!noWorkerAuthority) blockers.push("Worker authority must be disabled in materialization-only mode.");
+  } else if (startPacket?.mode === "wave_execution") {
+    if (approvedItems.length < 1 || approvedItems.length > 5) blockers.push("Wave execution Start must approve one to five leaves.");
+    if (expectedReadyIds.length === 0) blockers.push("Wave execution requires at least one approved Ready leaf.");
+    if (!sameStringList(approvedIds, expectedReadyIds)) {
+      blockers.push("Wave execution approved plan items must exactly match the approved Ready wave.");
+    }
+    for (const approved of approvedItems) {
+      const ready = (phasePlan.ready_wave ?? []).find((item) => item.plan_item_id === approved.plan_item_id);
+      if (!ready || !sameStringList(approved.conflict_keys, ready.conflict_keys)) {
+        blockers.push(`Orchestrator Start conflict keys do not match ${approved.plan_item_id ?? "<unknown>"}.`);
+      }
+    }
+    const workerAuthority = authorization.create_top_level_worker_tasks === true
+      && authorization.managed_worktrees === true
+      && Number.isInteger(authorization.max_worker_launches)
+      && authorization.max_worker_launches >= 1
+      && authorization.max_worker_launches <= 5
+      && Number.isInteger(authorization.max_concurrent_write_workers)
+      && authorization.max_concurrent_write_workers >= 1
+      && authorization.max_concurrent_write_workers <= 2
+      && authorization.monitor_and_steer === true
+      && authorization.archive_after_done === true
+      && authorization.create_high_risk_review_tasks === true;
+    if (!workerAuthority) blockers.push("Wave execution Worker authority is incomplete or exceeds configured limits.");
+  } else {
+    blockers.push("Orchestrator Start mode must be materialization_only or wave_execution.");
+  }
+
+  if (new Set(approvedIds).size !== approvedIds.length) blockers.push("Orchestrator Start contains duplicate approved plan items.");
+  return { valid: blockers.length === 0, blockers: [...new Set(blockers)] };
 }
 
 function mergeUnitReasons(candidate) {
@@ -209,14 +494,12 @@ export function planRollingWave({ current_phase, phases, wave_limit = 5 }) {
   return { phases: normalized, current_wave: currentWave, rejected_candidates: rejectedCandidates };
 }
 
-export function materializeApprovedPlan(packet, ledger = {}) {
-  if (packet?.approval?.status !== "APPROVED"
-    || !hasText(packet.approval?.revision)
-    || packet.approval.revision !== packet.revision) {
-    throw new Error("Plan materialization requires an approved, revision-bound Phase Plan Packet.");
-  }
+export function materializeApprovedPlan(contracts, ledger = {}) {
+  const validation = validatePlanContracts(contracts);
+  if (!validation.valid) throw new Error(`Plan materialization contract is invalid: ${validation.blockers.join(" ")}`);
+  const packet = contracts.phase_plan;
   const itemMap = new Map();
-  for (const item of [...(packet.hierarchy ?? []), ...(packet.ready_wave ?? [])]) {
+  for (const item of [...materializationItems(contracts), ...(packet.ready_wave ?? [])]) {
     if (!hasText(item.plan_item_id)) throw new Error("Every materialized item requires plan_item_id.");
     itemMap.set(item.plan_item_id, { ...(itemMap.get(item.plan_item_id) ?? {}), ...item });
   }
@@ -246,7 +529,8 @@ export function materializeApprovedPlan(packet, ledger = {}) {
       throw new Error(`Unknown parent plan item: ${item.parent_plan_item_id}.`);
     }
   }
-  for (const dependency of packet.dependencies ?? []) {
+  const dependencies = materializationDependencies(contracts);
+  for (const dependency of dependencies) {
     for (const id of [dependency.blocking, dependency.blocked]) {
       if (!byId.has(id) && !mapping[id]) throw new Error(`Unknown dependency plan item: ${id}.`);
     }
@@ -266,26 +550,41 @@ export function materializeApprovedPlan(packet, ledger = {}) {
     const key = `parent:${item.parent_plan_item_id}>${item.plan_item_id}`;
     if (!relationships.has(key)) relationshipCreates.push({ kind: "parent", key, parent: item.parent_plan_item_id, child: item.plan_item_id });
   }
-  for (const dependency of packet.dependencies ?? []) {
+  for (const dependency of dependencies) {
     const key = `dependency:${dependency.blocking}>${dependency.blocked}`;
     if (!relationships.has(key)) relationshipCreates.push({ kind: "dependency", key, ...dependency });
   }
   return {
     approval_revision: packet.approval.revision,
+    global_roadmap_revision: contracts.global_roadmap.revision,
+    global_roadmap_digest: contracts.global_roadmap.packet_digest,
+    phase_plan_digest: packet.packet_digest,
     issue_creates: issueCreates,
     relationship_creates: relationshipCreates,
     requires_read_after_write: true,
     agent_ready_candidates: (packet.ready_wave ?? []).map((item) => item.plan_item_id),
+    materialization_mode: (packet.ready_wave ?? []).length === 0 ? "materialization_only" : "wave_execution",
+    report_parent_plan_item_id: packet.materialization_report_parent_plan_item_id,
   };
 }
 
-export function evaluateMaterializationReport(packet, report) {
+export function evaluateMaterializationReport(contracts, report) {
   const blockers = [];
+  const validation = validatePlanContracts(contracts);
+  if (!validation.valid) blockers.push(...validation.blockers);
+  const packet = contracts?.phase_plan ?? {};
+  const roadmap = contracts?.global_roadmap ?? {};
   const observed = (records, key) => new Set((records ?? []).filter((item) => item.observed === true).map(key));
   const validIssueUrl = (value) => /^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/.test(value ?? "");
-  const mappingRecords = (report.mapping ?? []).filter((item) => Number.isInteger(item.issue_number) && item.issue_number > 0 && validIssueUrl(item.issue_url));
+  const validReportUrl = (value) => /^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+#issuecomment-\d+$/.test(value ?? "");
+  const mappingRecords = (report.mapping ?? []).filter((item) => Number.isInteger(item.issue_number)
+    && item.issue_number > 0
+    && validIssueUrl(item.issue_url)
+    && item.issue_url.endsWith(`/issues/${item.issue_number}`));
   const mapping = new Set(mappingRecords.map((item) => item.plan_item_id));
-  const expectedItems = new Set((packet.hierarchy ?? []).map((item) => item.plan_item_id));
+  const items = materializationItems(contracts);
+  const itemById = new Map(items.map((item) => [item.plan_item_id, item]));
+  const expectedItems = new Set(itemById.keys());
   for (const id of expectedItems) if (!mapping.has(id)) blockers.push(`Missing Issue mapping for ${id}.`);
   for (const id of mapping) if (!expectedItems.has(id)) blockers.push(`Unexpected Issue mapping for ${id}.`);
   if (mappingRecords.length !== (report.mapping ?? []).length || mapping.size !== mappingRecords.length) blockers.push("Issue mapping contains invalid or duplicate evidence.");
@@ -297,23 +596,44 @@ export function evaluateMaterializationReport(packet, report) {
   for (const edge of expectedHierarchy) if (!actualHierarchy.has(edge)) blockers.push(`Missing hierarchy readback for ${edge}.`);
   for (const edge of actualHierarchy) if (!expectedHierarchy.has(edge)) blockers.push(`Unexpected hierarchy readback for ${edge}.`);
 
-  const expectedDependencies = new Set((packet.dependencies ?? []).map((item) => `${item.blocking}>${item.blocked}`));
+  const expectedDependencies = new Set(materializationDependencies(contracts).map((item) => `${item.blocking}>${item.blocked}`));
   const actualDependencies = observed(report.dependency_readback, (item) => `${item.blocking}>${item.blocked}`);
   for (const edge of expectedDependencies) if (!actualDependencies.has(edge)) blockers.push(`Missing dependency readback for ${edge}.`);
   for (const edge of actualDependencies) if (!expectedDependencies.has(edge)) blockers.push(`Unexpected dependency readback for ${edge}.`);
 
-  const projectItems = observed((report.project_readback ?? []).filter((item) => hasText(item.project_item_id) && new Set(["Backlog", "Ready"]).has(item.status)), (item) => item.plan_item_id);
+  const validProjectRecords = (report.project_readback ?? []).filter((item) => {
+    const expected = itemById.get(item.plan_item_id);
+    return expected
+      && item.observed === true
+      && hasText(item.project_item_id)
+      && PROJECT_FIELDS.every((field) => item[field] === expected[field]);
+  });
+  const projectItems = observed(validProjectRecords, (item) => item.plan_item_id);
   for (const id of expectedItems) if (!projectItems.has(id)) blockers.push(`Missing Project readback for ${id}.`);
   for (const id of projectItems) if (!expectedItems.has(id)) blockers.push(`Unexpected Project readback for ${id}.`);
+  if (validProjectRecords.length !== (report.project_readback ?? []).length || projectItems.size !== validProjectRecords.length) {
+    blockers.push("Project readback contains invalid, stale, or duplicate field evidence.");
+  }
   const readyItems = new Set((report.agent_ready_readback ?? [])
     .filter((item) => item.label_present === true && item.status === "Ready" && validIssueUrl(item.issue_url))
     .map((item) => item.plan_item_id));
   const expectedReady = new Set((packet.ready_wave ?? []).map((item) => item.plan_item_id));
   for (const id of expectedReady) if (!readyItems.has(id)) blockers.push(`Missing agent-ready readback for ${id}.`);
   for (const id of readyItems) if (!expectedReady.has(id)) blockers.push(`Unexpected agent-ready readback for ${id}.`);
+  const expectedMode = (packet.ready_wave ?? []).length === 0 ? "materialization_only" : "wave_execution";
+  if (report.materialization_mode !== expectedMode) blockers.push("Materialization report mode does not match the approved Ready wave.");
+  if (report.global_roadmap_revision !== roadmap.revision) blockers.push("Materialization report revision does not match the approved Global Roadmap.");
+  if (report.global_roadmap_digest !== roadmap.packet_digest) blockers.push("Materialization report digest does not match the approved Global Roadmap.");
   if (report.phase_plan_revision !== packet.revision) blockers.push("Materialization report revision does not match the approved Phase Plan.");
+  if (report.phase_plan_digest !== packet.packet_digest) blockers.push("Materialization report digest does not match the approved Phase Plan.");
+  if (report.report_parent_plan_item_id !== packet.materialization_report_parent_plan_item_id) blockers.push("Materialization report parent does not match the approved Phase Plan.");
+  const parentMapping = mappingRecords.find((item) => item.plan_item_id === packet.materialization_report_parent_plan_item_id);
+  if (!parentMapping || report.report_parent_issue_url !== parentMapping.issue_url) blockers.push("Materialization report parent Issue URL is not the mapped approved parent.");
+  if (!validReportUrl(report.report_url) || !report.report_url.startsWith(`${report.report_parent_issue_url}#issuecomment-`)) {
+    blockers.push("Materialization report URL is not a durable comment on the approved parent Issue.");
+  }
   if (report.status !== "PASS") blockers.push("Materialization did not PASS.", ...(report.blockers ?? []));
-  return { valid: blockers.length === 0, blockers };
+  return { valid: blockers.length === 0, blockers: [...new Set(blockers)] };
 }
 
 export function selectLaunchableIssues({ candidates = [], active_workers = [], max_workers = 2 }) {

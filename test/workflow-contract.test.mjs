@@ -8,15 +8,18 @@ import {
   evaluateAdmission,
   evaluateMaterializationReport,
   evaluateMerge,
+  evaluateOrchestratorStart,
   evaluateReadiness,
   evaluateReviewTopology,
   evaluateWorkerLaunch,
   materializeApprovedPlan,
   orchestratorControl,
+  packetDigest,
   planRollingWave,
   postMergeReconciliation,
   postPrRecovery,
   selectLaunchableIssues,
+  validatePlanContracts,
 } from "../kit/repo/.codex/scripts/workflow-contract.mjs";
 
 const readyFields = {
@@ -40,6 +43,31 @@ const readyFields = {
   work_type: "Task",
   qa_required: "Yes",
 };
+
+const lifecyclePhases = ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"];
+
+function roadmapPhase(phase, overrides = {}) {
+  const slug = phase.toLowerCase();
+  return {
+    phase,
+    outcomes: [`${phase} outcome.`],
+    epics: [{
+      plan_item_id: `${slug}.epic`,
+      title: `${phase} Epic`,
+      work_type: "Epic",
+      priority: "P1",
+      size: "L",
+      risk: "Medium",
+      qa_required: "Yes",
+      status: "Backlog",
+    }],
+    dependencies: [],
+    risks: [`${phase} risk.`],
+    entry_criteria: [`${phase} entry.`],
+    exit_criteria: [`${phase} exit.`],
+    ...overrides,
+  };
+}
 
 function passingAdmission(overrides = {}) {
   const sha = "abc1234abc1234abc1234abc1234abc1234abc12";
@@ -194,77 +222,394 @@ test("planner assigns deterministic stable IDs and rejects incomplete merge unit
 });
 
 test("approved plan materialization is top-down and idempotent", () => {
-  const packet = {
-    revision: "phase-plan-r3",
-    approval: { status: "APPROVED", revision: "phase-plan-r3" },
-    hierarchy: [
-      { plan_item_id: "mvp.epic", parent_plan_item_id: null, title: "MVP Epic", work_type: "Epic" },
-      { plan_item_id: "mvp.epic.export", parent_plan_item_id: "mvp.epic", title: "Export", work_type: "Task" },
-    ],
-    ready_wave: [{ plan_item_id: "mvp.epic.export", parent_plan_item_id: "mvp.epic", title: "Export", conflict_keys: ["report-export"] }],
-    dependencies: [{ blocked: "mvp.epic.export", blocking: "foundation.api" }],
+  const roadmap = {
+    schema_version: 2,
+    packet_type: "global_roadmap",
+    revision: "roadmap-r3",
+    canonical_brief_revision: "canonical-r1",
+    current_phase: "MVP",
+    phases: lifecyclePhases.map((phase) => {
+      if (phase === "Foundation") return roadmapPhase(phase, {
+        outcomes: ["A stable API exists."],
+        epics: [{
+          plan_item_id: "foundation.api",
+          title: "Foundation API",
+          work_type: "Epic",
+          priority: "P0",
+          size: "L",
+          risk: "Medium",
+          qa_required: "Yes",
+          status: "Backlog",
+        }],
+        dependencies: [],
+        risks: ["Contract drift."],
+        entry_criteria: ["Design approved."],
+        exit_criteria: ["API validated."],
+      });
+      if (phase === "MVP") return roadmapPhase(phase, {
+        outcomes: ["A report can be exported."],
+        epics: [{
+          plan_item_id: "mvp.epic",
+          title: "MVP Epic",
+          work_type: "Epic",
+          priority: "P0",
+          size: "L",
+          risk: "Medium",
+          qa_required: "Yes",
+          status: "Backlog",
+        }],
+        dependencies: [{ blocked: "mvp.epic", blocking: "foundation.api" }],
+        risks: ["Export mismatch."],
+        entry_criteria: ["Foundation complete."],
+        exit_criteria: ["Export accepted."],
+      });
+      return roadmapPhase(phase);
+    }),
+    human_approvals: {
+      roadmap: { status: "APPROVED", revision: "roadmap-r3", packet_digest: "", approved_by: "human" },
+      current_phase_entry: { status: "APPROVED", phase: "MVP", approved_by: "human" },
+    },
   };
-  const first = materializeApprovedPlan(packet, { mapping: { "foundation.api": "https://github.com/acme/app/issues/2" }, resolved_plan_items: ["foundation.api"], relationships: [] });
-  assert.deepEqual(first.issue_creates.map((item) => item.plan_item_id), ["mvp.epic", "mvp.epic.export"]);
+  roadmap.packet_digest = packetDigest(roadmap);
+  roadmap.human_approvals.roadmap.packet_digest = roadmap.packet_digest;
+
+  const phasePlan = {
+    schema_version: 2,
+    packet_type: "phase_plan",
+    revision: "phase-plan-r3",
+    phase: "MVP",
+    iteration: "MVP Wave 1",
+    materialization_report_parent_plan_item_id: "mvp.epic",
+    hierarchy: [
+      {
+        plan_item_id: "mvp.epic",
+        parent_plan_item_id: null,
+        title: "MVP Epic",
+        phase: "MVP",
+        work_type: "Epic",
+        priority: "P0",
+        size: "L",
+        risk: "Medium",
+        qa_required: "Yes",
+        status: "Backlog",
+      },
+      {
+        plan_item_id: "mvp.epic.export",
+        parent_plan_item_id: "mvp.epic",
+        title: "Export",
+        phase: "MVP",
+        work_type: "Task",
+        priority: "P1",
+        size: "S",
+        risk: "Medium",
+        qa_required: "Yes",
+        status: "Ready",
+      },
+    ],
+    ready_wave: [{
+      plan_item_id: "mvp.epic.export",
+      parent_plan_item_id: "mvp.epic",
+      title: "Export",
+      work_type: "Task",
+      priority: "P1",
+      size: "S",
+      risk: "Medium",
+      qa_required: "Yes",
+      merge_outcome: "One PR adds CSV export.",
+      primary_signal: "A CSV downloads.",
+      acceptance: ["CSV downloads.", "Rows match.", "Errors are visible."],
+      owner_layer: "report-export",
+      conflict_keys: ["report-export"],
+      touch_points: ["export-route"],
+      dependencies: ["foundation.api"],
+      integration_order: 1,
+      validation: { targeted: ["npm test -- export"], full: ["npm test"], integration: ["npm test -- integration"] },
+      reviewers: ["reviewer", "qa", "admission-reviewer"],
+      human_gates: ["exact-sha-merge"],
+      out_of_scope: ["PDF export"],
+    }],
+    dependencies: [{ blocked: "mvp.epic.export", blocking: "foundation.api" }],
+    deferred: [],
+    phase_exit_evidence: [],
+    approval: { status: "APPROVED", revision: "phase-plan-r3", packet_digest: "", approved_by: "human" },
+  };
+  phasePlan.packet_digest = packetDigest(phasePlan);
+  phasePlan.approval.packet_digest = phasePlan.packet_digest;
+  const contracts = { global_roadmap: roadmap, phase_plan: phasePlan };
+
+  assert.deepEqual(validatePlanContracts(contracts), { valid: true, blockers: [] });
+  const first = materializeApprovedPlan(contracts, { mapping: {}, resolved_plan_items: ["foundation.api"], relationships: [] });
+  assert.equal(first.issue_creates.length, 9);
+  assert.ok(first.issue_creates.findIndex((item) => item.plan_item_id === "mvp.epic")
+    < first.issue_creates.findIndex((item) => item.plan_item_id === "mvp.epic.export"));
   assert.equal(first.requires_read_after_write, true);
   assert.deepEqual(first.agent_ready_candidates, ["mvp.epic.export"]);
+  assert.equal(first.report_parent_plan_item_id, "mvp.epic");
 
-  const second = materializeApprovedPlan(packet, {
-    mapping: {
-      "foundation.api": "https://github.com/acme/app/issues/2",
-      "mvp.epic": "https://github.com/acme/app/issues/10",
-      "mvp.epic.export": "https://github.com/acme/app/issues/11",
-    },
+  const completeMapping = Object.fromEntries(first.issue_creates.map((item, index) => [
+    item.plan_item_id,
+    `https://github.com/acme/app/issues/${index + 10}`,
+  ]));
+  const second = materializeApprovedPlan(contracts, {
+    mapping: completeMapping,
     resolved_plan_items: ["foundation.api"],
-    relationships: ["parent:mvp.epic>mvp.epic.export", "dependency:foundation.api>mvp.epic.export"],
+    relationships: [
+      "parent:mvp.epic>mvp.epic.export",
+      "dependency:foundation.api>mvp.epic",
+      "dependency:foundation.api>mvp.epic.export",
+    ],
   });
   assert.deepEqual(second.issue_creates, []);
   assert.deepEqual(second.relationship_creates, []);
 
+  const badHierarchy = structuredClone(contracts);
+  badHierarchy.phase_plan.hierarchy[1].title = "";
+  assert.match(validatePlanContracts(badHierarchy).blockers.join(" "), /title/);
+
+  const badDigest = structuredClone(contracts);
+  badDigest.phase_plan.packet_digest = "0".repeat(64);
+  assert.match(validatePlanContracts(badDigest).blockers.join(" "), /digest/);
+
+  const badParent = structuredClone(contracts);
+  badParent.phase_plan.materialization_report_parent_plan_item_id = "mvp.missing";
+  assert.match(validatePlanContracts(badParent).blockers.join(" "), /report parent/);
+
+  const ambiguousDependency = structuredClone(contracts);
+  ambiguousDependency.global_roadmap.phases[1].dependencies = [{ blocked: "mvp.epic", blocking: "design-readiness-pass" }];
+  ambiguousDependency.global_roadmap.packet_digest = packetDigest(ambiguousDependency.global_roadmap);
+  ambiguousDependency.global_roadmap.human_approvals.roadmap.packet_digest = ambiguousDependency.global_roadmap.packet_digest;
+  assert.match(validatePlanContracts(ambiguousDependency).blockers.join(" "), /Unknown dependency/);
+
+  const invalidMetadata = structuredClone(contracts);
+  invalidMetadata.phase_plan.hierarchy[1].priority = "Urgent";
+  invalidMetadata.phase_plan.packet_digest = packetDigest(invalidMetadata.phase_plan);
+  invalidMetadata.phase_plan.approval.packet_digest = invalidMetadata.phase_plan.packet_digest;
+  assert.match(validatePlanContracts(invalidMetadata).blockers.join(" "), /priority/);
+
+  const duplicateHierarchy = structuredClone(contracts);
+  duplicateHierarchy.phase_plan.hierarchy.push(structuredClone(duplicateHierarchy.phase_plan.hierarchy[1]));
+  duplicateHierarchy.phase_plan.packet_digest = packetDigest(duplicateHierarchy.phase_plan);
+  duplicateHierarchy.phase_plan.approval.packet_digest = duplicateHierarchy.phase_plan.packet_digest;
+  assert.match(validatePlanContracts(duplicateHierarchy).blockers.join(" "), /Duplicate Phase Plan hierarchy/);
+
+  const incompleteReady = structuredClone(contracts);
+  incompleteReady.phase_plan.ready_wave[0].acceptance = [];
+  incompleteReady.phase_plan.packet_digest = packetDigest(incompleteReady.phase_plan);
+  incompleteReady.phase_plan.approval.packet_digest = incompleteReady.phase_plan.packet_digest;
+  assert.match(validatePlanContracts(incompleteReady).blockers.join(" "), /Acceptance/);
+
+  const inconsistentReady = structuredClone(contracts);
+  inconsistentReady.phase_plan.ready_wave[0].title = "Different approved title";
+  inconsistentReady.phase_plan.packet_digest = packetDigest(inconsistentReady.phase_plan);
+  inconsistentReady.phase_plan.approval.packet_digest = inconsistentReady.phase_plan.packet_digest;
+  assert.match(validatePlanContracts(inconsistentReady).blockers.join(" "), /metadata does not match/);
+
+  const wrongPhase = structuredClone(contracts);
+  wrongPhase.phase_plan.phase = "Foundation";
+  wrongPhase.phase_plan.packet_digest = packetDigest(wrongPhase.phase_plan);
+  wrongPhase.phase_plan.approval.packet_digest = wrongPhase.phase_plan.packet_digest;
+  assert.match(validatePlanContracts(wrongPhase).blockers.join(" "), /current roadmap phase/);
+
+  const validStart = {
+    schema_version: 2,
+    packet_type: "orchestrator_start",
+    mode: "wave_execution",
+    wave_id: "mvp-wave-1",
+    global_roadmap_revision: roadmap.revision,
+    global_roadmap_digest: roadmap.packet_digest,
+    phase_plan_revision: phasePlan.revision,
+    phase_plan_digest: phasePlan.packet_digest,
+    base_sha: "a".repeat(40),
+    approved_plan_items: [{ plan_item_id: "mvp.epic.export", conflict_keys: ["report-export"] }],
+    authorization: {
+      status: "APPROVED",
+      create_top_level_worker_tasks: true,
+      managed_worktrees: true,
+      max_worker_launches: 5,
+      max_concurrent_write_workers: 2,
+      monitor_and_steer: true,
+      archive_after_done: true,
+      create_high_risk_review_tasks: true,
+      merge_requires_exact_sha_authorization: true,
+      approved_by: "human",
+    },
+    valid_until: "2099-01-01T00:00:00.000Z",
+  };
+  assert.deepEqual(evaluateOrchestratorStart(contracts, validStart, { now: "2098-01-01T00:00:00.000Z" }), {
+    valid: true,
+    blockers: [],
+  });
+  const wrongMode = structuredClone(validStart);
+  wrongMode.mode = "materialization_only";
+  assert.match(evaluateOrchestratorStart(contracts, wrongMode).blockers.join(" "), /materialization-only/);
+  const staleStart = structuredClone(validStart);
+  staleStart.phase_plan_digest = "0".repeat(64);
+  assert.match(evaluateOrchestratorStart(contracts, staleStart).blockers.join(" "), /Phase Plan/);
+
+  const orphanPlan = structuredClone(phasePlan);
+  orphanPlan.ready_wave[0].plan_item_id = "mvp.orphan";
+  orphanPlan.packet_digest = packetDigest(orphanPlan);
+  orphanPlan.approval.packet_digest = orphanPlan.packet_digest;
   assert.throws(
-    () => materializeApprovedPlan({ ...packet, ready_wave: [{ ...packet.ready_wave[0], plan_item_id: "mvp.orphan" }] }),
+    () => materializeApprovedPlan({ ...contracts, phase_plan: orphanPlan }),
     /must appear in hierarchy/,
   );
+  const ghostPlan = structuredClone(phasePlan);
+  ghostPlan.ready_wave[0].parent_plan_item_id = "mvp.ghost";
+  ghostPlan.packet_digest = packetDigest(ghostPlan);
+  ghostPlan.approval.packet_digest = ghostPlan.packet_digest;
   assert.throws(
-    () => materializeApprovedPlan({ ...packet, ready_wave: [{ ...packet.ready_wave[0], parent_plan_item_id: "mvp.ghost" }] }, { resolved_plan_items: ["foundation.api"] }),
+    () => materializeApprovedPlan({ ...contracts, phase_plan: ghostPlan }, { resolved_plan_items: ["foundation.api"] }),
     /parent does not match/,
   );
   assert.throws(
-    () => materializeApprovedPlan(packet, { mapping: { "foundation.api": "https://github.com/acme/app/issues/2" } }),
+    () => materializeApprovedPlan(contracts, { mapping: { "foundation.api": "https://github.com/acme/app/issues/2" } }),
     /unresolved dependencies/,
   );
 });
 
-test("materialization PASS requires complete mapping and native readback", () => {
-  const packet = {
+test("roadmap-only materialization PASS allows an empty Ready wave", () => {
+  const roadmap = {
+    schema_version: 2,
+    packet_type: "global_roadmap",
+    revision: "roadmap-r4",
+    canonical_brief_revision: "canonical-r1",
+    current_phase: "Planning",
+    phases: lifecyclePhases.map((phase) => phase === "Planning"
+      ? roadmapPhase(phase, {
+        outcomes: ["Roadmap approved."],
+        epics: [{
+          plan_item_id: "planning.epic",
+          title: "Planning Epic",
+          work_type: "Epic",
+          priority: "P0",
+          size: "L",
+          risk: "Medium",
+          qa_required: "Yes",
+          status: "Backlog",
+        }],
+        risks: ["Plan drift."],
+        entry_criteria: ["Canonical approved."],
+        exit_criteria: ["Roadmap approved."],
+      })
+      : roadmapPhase(phase)),
+    human_approvals: {
+      roadmap: { status: "APPROVED", revision: "roadmap-r4", packet_digest: "", approved_by: "human" },
+      current_phase_entry: { status: "APPROVED", phase: "Planning", approved_by: "human" },
+    },
+  };
+  roadmap.packet_digest = packetDigest(roadmap);
+  roadmap.human_approvals.roadmap.packet_digest = roadmap.packet_digest;
+  const phasePlan = {
+    schema_version: 2,
+    packet_type: "phase_plan",
     revision: "phase-plan-r4",
+    phase: "Planning",
+    iteration: "Planning",
+    materialization_report_parent_plan_item_id: "planning.epic",
     hierarchy: [
-      { plan_item_id: "mvp.epic", parent_plan_item_id: null },
-      { plan_item_id: "mvp.epic.export", parent_plan_item_id: "mvp.epic" },
+      {
+        plan_item_id: "planning.epic",
+        parent_plan_item_id: null,
+        title: "Planning Epic",
+        phase: "Planning",
+        work_type: "Epic",
+        priority: "P0",
+        size: "L",
+        risk: "Medium",
+        qa_required: "Yes",
+        status: "Backlog",
+      },
     ],
     dependencies: [],
-    ready_wave: [{ plan_item_id: "mvp.epic.export" }],
+    ready_wave: [],
+    deferred: [],
+    phase_exit_evidence: ["Roadmap approved."],
+    approval: { status: "APPROVED", revision: "phase-plan-r4", packet_digest: "", approved_by: "human" },
   };
-  const incomplete = evaluateMaterializationReport(packet, {
+  phasePlan.packet_digest = packetDigest(phasePlan);
+  phasePlan.approval.packet_digest = phasePlan.packet_digest;
+  const contracts = { global_roadmap: roadmap, phase_plan: phasePlan };
+  const materializationStart = {
+    schema_version: 2,
+    packet_type: "orchestrator_start",
+    mode: "materialization_only",
+    wave_id: "planning-materialization",
+    global_roadmap_revision: roadmap.revision,
+    global_roadmap_digest: roadmap.packet_digest,
+    phase_plan_revision: phasePlan.revision,
+    phase_plan_digest: phasePlan.packet_digest,
+    base_sha: "b".repeat(40),
+    approved_plan_items: lifecyclePhases.map((phase) => ({
+      plan_item_id: `${phase.toLowerCase()}.epic`,
+    })),
+    authorization: {
+      status: "APPROVED",
+      create_top_level_worker_tasks: false,
+      managed_worktrees: false,
+      max_worker_launches: 0,
+      max_concurrent_write_workers: 0,
+      monitor_and_steer: false,
+      archive_after_done: false,
+      create_high_risk_review_tasks: false,
+      merge_requires_exact_sha_authorization: true,
+      approved_by: "human",
+    },
+    valid_until: "2099-01-01T00:00:00.000Z",
+  };
+  assert.deepEqual(evaluateOrchestratorStart(contracts, materializationStart, { now: "2098-01-01T00:00:00.000Z" }), {
+    valid: true,
+    blockers: [],
+  });
+  const accidentalWorkerAuthority = structuredClone(materializationStart);
+  accidentalWorkerAuthority.authorization.create_top_level_worker_tasks = true;
+  assert.match(evaluateOrchestratorStart(contracts, accidentalWorkerAuthority).blockers.join(" "), /Worker authority/);
+  const expectedItems = lifecyclePhases.map((phase) => {
+    const item = roadmap.phases.find((entry) => entry.phase === phase).epics[0];
+    return { ...item, phase };
+  });
+  const mappings = expectedItems.map((item, index) => ({
+    plan_item_id: item.plan_item_id,
+    issue_number: index + 10,
+    issue_url: `https://github.com/acme/app/issues/${index + 10}`,
+  }));
+  const projectReadback = expectedItems.map((item, index) => ({
+    ...item,
+    title: undefined,
+    project_item_id: `PVTI_${index + 10}`,
+    observed: true,
+  }));
+  for (const record of projectReadback) delete record.title;
+  const planningMapping = mappings.find((item) => item.plan_item_id === "planning.epic");
+
+  const incomplete = evaluateMaterializationReport(contracts, {
+    materialization_mode: "materialization_only",
+    global_roadmap_revision: "roadmap-r4",
+    global_roadmap_digest: roadmap.packet_digest,
     phase_plan_revision: "phase-plan-r4",
+    phase_plan_digest: phasePlan.packet_digest,
+    report_parent_plan_item_id: "planning.epic",
+    report_parent_issue_url: planningMapping.issue_url,
+    report_url: `${planningMapping.issue_url}#issuecomment-1`,
     status: "PASS",
     mapping: [], hierarchy_readback: [], dependency_readback: [], project_readback: [], agent_ready_readback: [], blockers: [],
   });
   assert.equal(incomplete.valid, false);
-  const complete = evaluateMaterializationReport(packet, {
+  const complete = evaluateMaterializationReport(contracts, {
+    materialization_mode: "materialization_only",
+    global_roadmap_revision: "roadmap-r4",
+    global_roadmap_digest: roadmap.packet_digest,
     phase_plan_revision: "phase-plan-r4",
+    phase_plan_digest: phasePlan.packet_digest,
+    report_parent_plan_item_id: "planning.epic",
+    report_parent_issue_url: planningMapping.issue_url,
+    report_url: `${planningMapping.issue_url}#issuecomment-1`,
     status: "PASS",
-    mapping: [
-      { plan_item_id: "mvp.epic", issue_number: 10, issue_url: "https://github.com/acme/app/issues/10" },
-      { plan_item_id: "mvp.epic.export", issue_number: 11, issue_url: "https://github.com/acme/app/issues/11" },
-    ],
-    hierarchy_readback: [{ parent_plan_item_id: "mvp.epic", child_plan_item_id: "mvp.epic.export", observed: true }],
+    mapping: mappings,
+    hierarchy_readback: [],
     dependency_readback: [],
-    project_readback: [
-      { plan_item_id: "mvp.epic", project_item_id: "PVTI_10", status: "Backlog", observed: true },
-      { plan_item_id: "mvp.epic.export", project_item_id: "PVTI_11", status: "Ready", observed: true },
-    ],
-    agent_ready_readback: [{ plan_item_id: "mvp.epic.export", issue_url: "https://github.com/acme/app/issues/11", label_present: true, status: "Ready" }],
+    project_readback: projectReadback,
+    agent_ready_readback: [],
     blockers: [],
   });
   assert.deepEqual(complete, { valid: true, blockers: [] });

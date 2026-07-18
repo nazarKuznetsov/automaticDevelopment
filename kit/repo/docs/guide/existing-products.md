@@ -93,3 +93,17 @@ Use $github-project-planner in continuation mode in a fresh read-only task for <
 After the migration PR is human-merged, run a separately approved Low-risk dogfood Issue. Verify canonical top-level Worker task/managed-worktree readback, zero PRs on failing branch CI, distinct reviewer/QA/admission identities, one exact-SHA PR, human authorization bound to repository/PR/head/base/admission digest, Orchestrator merge readback, and post-merge CI bound to the merge commit before Done/archive. Do not use deploy, migration, auth, or customer data for the pilot.
 
 Rollback is Git-first: revert the migration PR if repository behavior is unsafe. Project field additions should remain non-destructive during evaluation; do not delete old fields/data until v2 has completed an accepted wave and a human approves cleanup.
+
+## Repair an unmaterialized v2 plan after the 2.0.1 contract hotfix
+
+Kit 2.0.1 closes the fail-open gap between roadmap prose and executable materialization. If Stage A stopped before GitHub writes, do not clean up or retrofit partial product state: there is none to reconcile. Upgrade only the kit-managed workflow files in a workflow-only branch/PR, preserving host-owned product semantics and configuration. After that PR is human-merged:
+
+1. run the installed contract tests and validator;
+2. keep the rejected packet as immutable historical evidence;
+3. start a fresh read-only Planner in Repair mode;
+4. preserve accepted outcomes and stable IDs, but emit complete new Global Roadmap and Phase Plan revisions/digests;
+5. require exact titles/Project metadata, typed dependencies, a valid report parent, and a zero-blocker validator result;
+6. request human approval of both exact revisions/digests;
+7. do not materialize, create product Issues, or launch Workers until that new approval is recorded.
+
+This is a contract repair, not a new product-planning cycle. The Planner must not reinterpret the Canonical Brief or add product scope merely because the machine schema became stricter.

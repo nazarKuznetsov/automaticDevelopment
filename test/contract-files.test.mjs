@@ -11,6 +11,7 @@ function json(path) {
 
 test("workflow config pins wave-scoped fresh-task and exact-SHA merge defaults", () => {
   const workflow = json(".codex/agent-workflow.json");
+  assert.equal(workflow.kit_version, "2.0.1");
   assert.deepEqual({
     orchestrator_scope: workflow.execution.orchestrator_scope,
     task_strategy: workflow.execution.task_strategy,
@@ -69,16 +70,64 @@ test("packet schemas cover task lifecycle without durable local paths", () => {
     assert.ok(admission.required.includes(field), `Pre-PR Admission missing ${field}`);
   }
   const start = json(".codex/schemas/v2/orchestrator-start.schema.json");
-  assert.ok(start.required.includes("approved_plan_items"));
+  for (const field of [
+    "mode",
+    "global_roadmap_revision",
+    "global_roadmap_digest",
+    "phase_plan_revision",
+    "phase_plan_digest",
+    "approved_plan_items",
+  ]) assert.ok(start.required.includes(field), `Orchestrator Start missing ${field}`);
   assert.equal(start.properties.approved_issues, undefined);
-  assert.equal(start.properties.approved_plan_items.items.properties.number, undefined);
+  assert.equal(start.$defs.plan_item.properties.number, undefined);
+  assert.ok(start.properties.authorization.required.includes("approved_by"));
   assert.match(start.$defs.conflict_keys.items.pattern, /a-z0-9/);
+  assert.ok(start.allOf.some((rule) => rule.if?.properties?.mode?.const === "materialization_only"));
+  assert.ok(start.allOf.some((rule) => rule.if?.properties?.mode?.const === "wave_execution"));
   const merge = json(".codex/schemas/v2/merge-authorization.schema.json");
   for (const field of ["repository", "pr", "head_sha", "base_sha", "admission_report_url", "admission_report_digest"]) {
     assert.ok(merge.required.includes(field), `Merge Authorization missing ${field}`);
   }
   const allSchemas = files.map((file) => readFileSync(join(schemaDir, file), "utf8")).join("\n");
   assert.doesNotMatch(allSchemas, /worktree_path|filesystem_path/);
+});
+
+test("planning schemas are complete enough for fail-closed materialization", () => {
+  const roadmap = json(".codex/schemas/v2/global-roadmap.schema.json");
+  for (const field of ["revision", "packet_digest"]) {
+    assert.ok(roadmap.required.includes(field), `Global Roadmap missing ${field}`);
+  }
+  const epic = roadmap.properties.phases.items.properties.epics.items;
+  for (const field of ["plan_item_id", "title", "work_type", "priority", "size", "risk", "qa_required", "status"]) {
+    assert.ok(epic.required.includes(field), `Roadmap Epic missing ${field}`);
+  }
+  const roadmapDependency = roadmap.$defs.dependency;
+  assert.deepEqual(roadmapDependency.required, ["blocked", "blocking"]);
+
+  const phasePlan = json(".codex/schemas/v2/phase-plan.schema.json");
+  for (const field of ["packet_digest", "materialization_report_parent_plan_item_id"]) {
+    assert.ok(phasePlan.required.includes(field), `Phase Plan missing ${field}`);
+  }
+  const hierarchyItem = phasePlan.properties.hierarchy.items;
+  for (const field of ["plan_item_id", "parent_plan_item_id", "title", "phase", "work_type", "priority", "size", "risk", "qa_required", "status"]) {
+    assert.ok(hierarchyItem.required.includes(field), `Phase hierarchy missing ${field}`);
+  }
+
+  const report = json(".codex/schemas/v2/plan-materialization-report.schema.json");
+  for (const field of [
+    "materialization_mode",
+    "global_roadmap_revision",
+    "global_roadmap_digest",
+    "phase_plan_revision",
+    "phase_plan_digest",
+    "report_parent_plan_item_id",
+    "report_parent_issue_url",
+    "report_url",
+  ]) assert.ok(report.required.includes(field), `Materialization Report missing ${field}`);
+  const passRule = report.allOf.find((rule) => rule.if?.properties?.status?.const === "PASS");
+  assert.equal(passRule.then.properties.agent_ready_readback?.minItems, undefined);
+  const materializationOnlyRule = report.allOf.find((rule) => rule.if?.properties?.materialization_mode?.const === "materialization_only");
+  assert.equal(materializationOnlyRule.then.properties.agent_ready_readback.maxItems, 0);
 });
 
 test("custom agents include distinct admission and non-authoring medium QA/design defaults", () => {

@@ -42,6 +42,7 @@ test("apply installs new lifecycle packets and admission agent as managed files"
     ".codex/schemas/v2/wave-completion.schema.json",
   ]) assert.equal(existsSync(join(target, path)), true, path);
   const lock = JSON.parse(readFileSync(join(target, ".codex", "kit-lock.json"), "utf8"));
+  assert.equal(lock.kit_version, "2.0.1");
   assert.equal(lock.files[".codex/agents/admission-reviewer.toml"].ownership, "managed");
 });
 

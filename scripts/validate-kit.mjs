@@ -37,7 +37,7 @@ for (const path of required) {
 }
 
 const manifest = JSON.parse(readFileSync(join(root, "kit", "manifest.json"), "utf8"));
-if (manifest.schema_version !== 2 || manifest.kit_version !== "2.0.0") fail("manifest is not workflow v2");
+if (manifest.schema_version !== 2 || manifest.kit_version !== "2.0.1") fail("manifest is not workflow v2.0.1");
 const manifestPaths = manifest.files.map((entry) => entry.path).sort();
 const kitFiles = filesUnder(kitRoot);
 if (JSON.stringify(manifestPaths) !== JSON.stringify(kitFiles)) {

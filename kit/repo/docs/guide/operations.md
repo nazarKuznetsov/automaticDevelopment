@@ -20,6 +20,8 @@ Upgrade overwrites an installed file only when its current hash still matches th
 
 Here, “stop” refers to collision preflight, not rollback after an operating-system copy failure; always inspect the Git diff. `--dry-run` automatically previews install when no lock exists and upgrade when it does. `--force` is upgrade-only and only for a managed path already recorded by the kit. After manually merging a host-owned file, preserve it explicitly with repeatable `--accept-host <path>`; never use that option as a substitute for reviewing the merge.
 
+Patch upgrades may strengthen managed schemas, validators, skills, and guide pages without changing workflow schema version 2. After such an upgrade, previously approved packets are not grandfathered into materialization: recompute them against the installed validators. If they fail, preserve accepted product decisions and stable IDs in a fresh read-only Planner Repair revision, then obtain a new exact approval. Do not edit an approved packet in place.
+
 ## Scheduled work
 
 The 20-minute heartbeat uses task-attached Codex [scheduled work](https://developers.openai.com/codex/app/automations) only after the scheduling tool returns a schedule ID. It belongs to the current wave Orchestrator, needs the Codex desktop app running and an available checkout, and pauses when idle or awaiting a human. If scheduling is unavailable, record it and require explicit resumption; do not imply background monitoring continues. No database, webhook, hosted controller, or background service is required.

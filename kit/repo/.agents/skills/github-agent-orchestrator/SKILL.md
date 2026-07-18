@@ -1,6 +1,6 @@
 ---
 name: github-agent-orchestrator
-description: Materialize one human-approved Phase Plan and execute one GitHub rolling wave by creating fresh top-level Codex Worker tasks in managed worktrees, arbitrating conflict keys, maintaining transactional claims, triaging findings, enforcing exact-SHA admission, executing human-authorized merges, reconciling post-merge CI, and handing off after five launches. Use only with a valid Orchestrator Start Packet; never write product code or invent backlog.
+description: Materialize digest-bound Global Roadmap and Phase Plan packets, then optionally execute one GitHub rolling wave with fresh top-level managed-worktree Workers, transactional claims, exact-SHA admission, human-authorized merges, and post-merge reconciliation. Use in materialization-only or wave-execution mode with a valid Orchestrator Start Packet; never write product code or invent backlog.
 ---
 
 # GitHub Agent Orchestrator
@@ -9,7 +9,7 @@ Treat GitHub as the durable ledger and tasks/worktrees as disposable execution s
 
 ## Invariants
 
-- Scope one fresh top-level Orchestrator task to one approved wave.
+- Scope one fresh top-level Orchestrator task to one approved materialization or wave.
 - Never implement product code or run a write Worker as an Orchestrator subagent.
 - Execute only approved Ready, `agent-ready`, unblocked leaf Issues sized XS–M.
 - Keep at most two write Workers, only when `conflict_keys` are disjoint.
@@ -20,11 +20,18 @@ Treat GitHub as the durable ledger and tasks/worktrees as disposable execution s
 
 ## Preflight and Materialization
 
-1. Verify workflow v2, Start Packet revision/expiry/authority, repository/default branch, Project schema, validation, native hierarchy/dependency mutation capability, task creation, saved project, managed worktrees, and scheduling with non-mutating probes.
+1. Verify workflow v2, Start Packet mode/revisions/digests/expiry/authority, repository/default branch, Project schema, validation, native hierarchy/dependency mutation capability, and authenticated GitHub Project access with non-mutating probes. Run `evaluateOrchestratorStart(contracts, startPacket)` from `.codex/scripts/workflow-contract.mjs`; any blocker stops all writes. Probe task/worktree/scheduling capability only for `wave_execution`.
 2. If a required mutation is unavailable, publish Human Action Required. A comment is not a fallback relationship.
-3. Resolve the Start Packet's approved `plan_item_id` values against the exact Phase Plan revision; Issue numbers are outputs, never Start Packet inputs. Require every Ready leaf in hierarchy with a parent.
-4. Materialize exactly and idempotently: Issues top-down, native sub-issues, native dependencies, Project items/fields, read-after-write, `plan_item_id → Issue URL` mapping, then `agent-ready` on passing leaves. PASS requires complete typed readback.
-5. Never change approved titles, scope, dependencies, acceptance, or order while materializing. Request a revised plan instead.
+3. Read the complete Global Roadmap and Phase Plan packets. Recompute both digests and run `validatePlanContracts(..., { require_approval: true })`; never reconstruct missing packet content from prose or chat summaries.
+4. Resolve the Start Packet's approved `plan_item_id` values against both exact packets. Issue numbers are outputs, never Start Packet inputs. Require exact titles and all Project fields for every materialized item.
+5. Materialize exactly and idempotently: Issues top-down, native sub-issues, native dependencies, Project items/fields, and read-after-write. Publish the Plan Materialization Report as one durable comment on the mapped Issue named by `materialization_report_parent_plan_item_id`.
+6. In `materialization_only`, require zero Worker authority and leave `agent_ready_readback` empty when `ready_wave` is empty. In `wave_execution`, apply `agent-ready` only to exact passing leaves after all typed readback.
+7. Never change approved titles, metadata, scope, dependencies, acceptance, report parent, or order. Request a new digest-bound Planner revision instead.
+
+## Modes
+
+- `materialization_only`: may materialize up to 100 approved plan items; creates no claims, Workers, heartbeat, branch, PR, or merge authority.
+- `wave_execution`: materializes and executes only one approved Ready wave of at most five leaves; all Worker/merge invariants apply.
 
 ## Claims and Worker Tasks
 
@@ -48,4 +55,4 @@ After a human submits a Merge Authorization Packet bound to repository, exact PR
 
 ## Heartbeat and Handoff
 
-Attach a 20-minute heartbeat only while the wave has active work; pause when idle or waiting for a human. Stop new launches at five. Complete Handoff Packet, create a fresh replacement when needed, and archive the old Orchestrator only after takeover readback. A new wave always starts a new Orchestrator task.
+Attach a 20-minute heartbeat only while the wave has active work; pause when idle or waiting for a human. Stop new launches at five. Complete Handoff Packet, create a fresh replacement when needed, and archive the old Orchestrator only after takeover readback. A new wave always starts a new Orchestrator task. A materialization-only task terminates after its report readback and never rolls into execution.
