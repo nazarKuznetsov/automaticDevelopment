@@ -107,3 +107,18 @@ Kit 2.0.1 closes the fail-open gap between roadmap prose and executable material
 7. do not materialize, create product Issues, or launch Workers until that new approval is recorded.
 
 This is a contract repair, not a new product-planning cycle. The Planner must not reinterpret the Canonical Brief or add product scope merely because the machine schema became stricter.
+
+## Retire managed admission overrides with 2.0.2
+
+Kit 2.0.2 moves generic one-time bootstrap, Canonical publication, and exact PR-target admission into managed core. Keep only verified repository values in host-owned `.codex/agent-workflow.json` and `docs/project-workflow-runbook.md`.
+
+For a repository with older local copies of the managed hook, schema, gate, contract, or guide pages:
+
+1. run installer `--dry-run` from the 2.0.2 source;
+2. verify every collision is a previously recorded managed path and that core covers the required generic behavior;
+3. run `--upgrade --force` only to replace those recorded managed overrides, plus `--accept-host` for reviewed host config/runbook values;
+4. verify the resulting managed files exactly match the 2.0.2 source and no product/canonical/Issue/Project/Worker state changed;
+5. validate and merge the workflow-only PR through the normal human gate;
+6. recompute any not-yet-materialized Planner Packet against the installed validators and obtain exact approval before materialization.
+
+Do not copy repository-specific check names, branches, revisions, IDs, hashes, or URLs back into managed documentation.

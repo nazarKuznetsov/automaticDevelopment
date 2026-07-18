@@ -33,6 +33,13 @@ const REQUIRED_READY_FIELDS = [
   "qa_required",
 ];
 
+const RAW_ADMISSION_FIELDS = new Set([
+  "schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha",
+  "qa_tracked_worktree", "gate_tracked_worktree", "worker", "executor", "publisher", "issue",
+  "bootstrap", "canonical_publication", "acceptance", "tdd", "local_validation", "reviews",
+  "branch_ci", "baseline", "documentation", "rollout", "human_gates", "existing_pr_for_sha",
+]);
+
 function hasText(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -380,6 +387,29 @@ function sameStringList(left, right) {
     && Array.isArray(right)
     && left.length === right.length
     && left.every((value, index) => value === right[index]);
+}
+
+function sameStringSet(left, right) {
+  return Array.isArray(left)
+    && Array.isArray(right)
+    && new Set(left).size === left.length
+    && new Set(right).size === right.length
+    && sameStringList([...left].sort(), [...right].sort());
+}
+
+function sameHashMap(left, right) {
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return sameStringList(leftKeys, rightKeys)
+    && leftKeys.every((key) => /^[0-9a-f]{64}$/.test(left[key]) && left[key] === right[key]);
+}
+
+function validRawEvidenceKeys(value) {
+  return Array.isArray(value)
+    && value.length > 0
+    && new Set(value).size === value.length
+    && value.every((key) => RAW_ADMISSION_FIELDS.has(key));
 }
 
 function validationPassed(record, sha, configuredCommands) {
@@ -754,13 +784,27 @@ function collectAdmissionBlockers(evidence) {
 
   const requiredEvidenceFields = [
     "schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha",
-    "qa_tracked_worktree", "gate_tracked_worktree", "worker", "issue", "acceptance", "tdd",
+    "qa_tracked_worktree", "gate_tracked_worktree", "acceptance", "tdd",
     "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates",
   ];
+  const hasWorker = Object.hasOwn(evidence, "worker");
+  const hasIssue = Object.hasOwn(evidence, "issue");
+  const hasExecutor = Object.hasOwn(evidence, "executor");
+  const hasBootstrap = Object.hasOwn(evidence, "bootstrap");
+  const hasPublisher = Object.hasOwn(evidence, "publisher");
+  const hasCanonicalPublication = Object.hasOwn(evidence, "canonical_publication");
+  const issueAdmission = hasWorker && hasIssue
+    && !hasExecutor && !hasBootstrap && !hasPublisher && !hasCanonicalPublication;
+  const bootstrapAdmission = hasExecutor && hasBootstrap
+    && !hasWorker && !hasIssue && !hasPublisher && !hasCanonicalPublication;
+  const canonicalPublicationAdmission = hasPublisher && hasCanonicalPublication
+    && !hasWorker && !hasIssue && !hasExecutor && !hasBootstrap;
   requirePass(
     evidence.schema_version === 2
       && evidence.packet_type === "pre_pr_admission"
-      && requiredEvidenceFields.every((field) => Object.hasOwn(evidence, field)),
+      && requiredEvidenceFields.every((field) => Object.hasOwn(evidence, field))
+      && Number(issueAdmission) + Number(bootstrapAdmission) + Number(canonicalPublicationAdmission) === 1
+      && validRawEvidenceKeys(evidence.raw_evidence_keys),
     "Admission evidence does not satisfy the required packet shape for schema v2.",
   );
   requirePass(/^[0-9a-f]{40}$/.test(evidence.commit_sha ?? "") && evidence.commit_sha === evidence.current_sha, "Admission report is not bound to the full current commit SHA.");
@@ -782,19 +826,82 @@ function collectAdmissionBlockers(evidence) {
       && evidence.gate_tracked_worktree?.after === "",
     "The deterministic gate must observe a clean tracked worktree before and after validation.",
   );
-  requirePass(Number.isInteger(evidence.issue?.number) && evidence.issue.number > 0, "Admission evidence lacks a valid Issue number.");
-  const branchPattern = Number.isInteger(evidence.issue?.number)
-    ? new RegExp(`^agent/${evidence.issue.number}-[a-z0-9][a-z0-9-]*$`)
-    : /^$/;
-  requirePass(branchPattern.test(evidence.current_branch ?? ""), "Current branch does not match agent/<issue>-<slug>.");
-  requirePass(evidence.issue?.is_leaf === true, "Only a leaf issue can enter admission.");
-  requirePass(Array.isArray(evidence.issue?.unresolved_dependencies) && evidence.issue.unresolved_dependencies.length === 0, "Blocking issue dependencies remain unresolved or dependency evidence is missing.");
-  const riskMetadataValid = new Set(["Low", "Medium", "High"]).has(evidence.issue?.risk)
-    && Array.isArray(evidence.issue?.high_risk_flags)
-    && new Set(evidence.issue.high_risk_flags).size === evidence.issue.high_risk_flags.length
-    && evidence.issue.high_risk_flags.every((flag) => new Set(["security", "auth", "data", "migration"]).has(flag));
-  requirePass(riskMetadataValid, "Issue risk and high-risk flags are missing or invalid.");
-  requirePass(new Set(["agent_task", "human"]).has(evidence.worker?.source?.kind) && hasText(evidence.worker?.source?.id), "Worker identity is missing.");
+  const subject = bootstrapAdmission
+    ? evidence.bootstrap
+    : canonicalPublicationAdmission
+      ? evidence.canonical_publication
+      : evidence.issue;
+  const executionSource = bootstrapAdmission
+    ? evidence.executor?.source
+    : canonicalPublicationAdmission
+      ? evidence.publisher?.source
+      : evidence.worker?.source;
+  if (bootstrapAdmission) {
+    const configuredBootstrap = evidence.configured_bootstrap;
+    requirePass(
+      configuredBootstrap?.authority === "one-time-automated-control-plane-bootstrap"
+        && /^[0-9a-f]{40}$/.test(configuredBootstrap?.base_sha ?? "")
+        && evidence.bootstrap?.authority === configuredBootstrap.authority
+        && evidence.bootstrap?.repository === configuredBootstrap.repository
+        && evidence.bootstrap?.branch === configuredBootstrap.branch
+        && evidence.bootstrap?.canonical_revision === configuredBootstrap.canonical_revision
+        && /^agent\/bootstrap-[a-z0-9][a-z0-9-]*$/.test(evidence.bootstrap?.branch ?? "")
+        && evidence.current_branch === configuredBootstrap.branch
+        && evidence.current_base_sha === configuredBootstrap.base_sha
+        && evidence.validated_base_sha === configuredBootstrap.base_sha,
+      "Bootstrap admission is not bound to the exact configured repository, branch, base SHA, authority, and Canonical Brief revision.",
+    );
+  } else if (canonicalPublicationAdmission) {
+    const configuredPublication = evidence.configured_canonical_publication;
+    requirePass(
+      configuredPublication?.authority === "human-approved-canonical-publication"
+        && configuredPublication?.base_binding === "authoritative-origin-default-branch-at-launch"
+        && evidence.canonical_tree_state?.config_unchanged === true
+        && sameStringSet(
+          evidence.canonical_tree_state?.changed_paths,
+          configuredPublication?.allowed_paths,
+        )
+        && sameStringSet(
+          configuredPublication?.allowed_paths,
+          Object.keys(configuredPublication?.content_hashes ?? {}),
+        )
+        && sameHashMap(
+          evidence.canonical_tree_state?.content_hashes,
+          configuredPublication?.content_hashes,
+        )
+        && evidence.canonical_publication?.authority === configuredPublication.authority
+        && evidence.canonical_publication?.repository === configuredPublication.repository
+        && evidence.canonical_publication?.branch === configuredPublication.branch
+        && evidence.canonical_publication?.canonical_revision === configuredPublication.canonical_revision
+        && evidence.canonical_publication?.approved_by === configuredPublication.approved_by
+        && evidence.canonical_publication?.approval_source?.kind === configuredPublication.approval_source?.kind
+        && evidence.canonical_publication?.approval_source?.id === configuredPublication.approval_source?.id
+        && /^agent\/canonical-brief-[a-z0-9][a-z0-9-]*$/.test(evidence.canonical_publication?.branch ?? "")
+        && evidence.current_branch === configuredPublication.branch
+        && evidence.base_sha_at_launch === evidence.current_base_sha
+        && evidence.validated_base_sha === evidence.current_base_sha
+        && evidence.canonical_tree_state?.base_revision === configuredPublication.superseded_revision
+        && evidence.canonical_tree_state?.current_revision === configuredPublication.canonical_revision
+        && evidence.canonical_tree_state?.current_approved_by === configuredPublication.approved_by
+        && hasText(configuredPublication?.supersession_text)
+        && evidence.canonical_tree_state?.current_text?.includes(configuredPublication.supersession_text),
+      "Canonical publication admission is not bound to immutable base configuration, the exact repository, branch, launch base SHA, revisions, approval, approved content hashes, supersession text, and allowed diff scope.",
+    );
+  } else {
+    requirePass(Number.isInteger(evidence.issue?.number) && evidence.issue.number > 0, "Admission evidence lacks a valid Issue number.");
+    const branchPattern = Number.isInteger(evidence.issue?.number)
+      ? new RegExp(`^agent/${evidence.issue.number}-[a-z0-9][a-z0-9-]*$`)
+      : /^$/;
+    requirePass(branchPattern.test(evidence.current_branch ?? ""), "Current branch does not match agent/<issue>-<slug>.");
+    requirePass(evidence.issue?.is_leaf === true, "Only a leaf issue can enter admission.");
+  }
+  requirePass(Array.isArray(subject?.unresolved_dependencies) && subject.unresolved_dependencies.length === 0, "Blocking dependencies remain unresolved or dependency evidence is missing.");
+  const riskMetadataValid = new Set(["Low", "Medium", "High"]).has(subject?.risk)
+    && Array.isArray(subject?.high_risk_flags)
+    && new Set(subject.high_risk_flags).size === subject.high_risk_flags.length
+    && subject.high_risk_flags.every((flag) => new Set(["security", "auth", "data", "migration"]).has(flag));
+  requirePass(riskMetadataValid, "Admission subject risk and high-risk flags are missing or invalid.");
+  requirePass(new Set(["agent_task", "human"]).has(executionSource?.kind) && hasText(executionSource?.id), "Execution identity is missing.");
   requirePass(evidence.acceptance?.passed === true && hasEvidence(evidence.acceptance?.evidence), "Acceptance criteria lack traceable passing evidence.");
 
   const tddPass = evidence.tdd?.status === "PASS"
@@ -815,10 +922,9 @@ function collectAdmissionBlockers(evidence) {
   requirePass(validationPassed(evidence.local_validation?.full, evidence.current_sha, evidence.configured_validation?.full), "Full local validation does not contain the exact configured commands and successful results for this SHA.");
   requirePass(validationPassed(evidence.local_validation?.integration, evidence.current_sha, evidence.configured_validation?.integration), "Integration validation does not contain the exact configured commands and successful results for this SHA.");
 
-  const workerSource = evidence.worker?.source;
-  const reviewerPass = reviewPassed(evidence.reviews?.reviewer, evidence.current_sha, workerSource);
-  const qaPass = reviewPassed(evidence.reviews?.qa, evidence.current_sha, workerSource);
-  const admissionPass = reviewPassed(evidence.reviews?.admission, evidence.current_sha, workerSource);
+  const reviewerPass = reviewPassed(evidence.reviews?.reviewer, evidence.current_sha, executionSource);
+  const qaPass = reviewPassed(evidence.reviews?.qa, evidence.current_sha, executionSource);
+  const admissionPass = reviewPassed(evidence.reviews?.admission, evidence.current_sha, executionSource);
   requirePass(reviewerPass, "Independent reviewer lacks a distinct identity, exact SHA, or traceable PASS evidence.");
   requirePass(qaPass, "Independent QA lacks a distinct identity, exact SHA, or traceable PASS evidence.");
   requirePass(admissionPass, "Admission reviewer lacks a distinct identity, exact SHA, or traceable PASS evidence.");
@@ -830,13 +936,13 @@ function collectAdmissionBlockers(evidence) {
       || !new Set([evidence.reviews.reviewer.source.id, evidence.reviews.qa.source.id]).has(evidence.reviews.admission.source.id),
     "Admission reviewer must be distinct from Worker, reviewer, and QA.",
   );
-  requirePass(conditionalReviewPassed(evidence.reviews?.design, evidence.current_sha, workerSource), "Design review is required and lacks independent evidence, or NOT_REQUIRED lacks a reason.");
-  requirePass(conditionalReviewPassed(evidence.reviews?.security, evidence.current_sha, workerSource), "Security review is required and lacks independent evidence, or NOT_REQUIRED lacks a reason.");
-  const highRisk = !riskMetadataValid || evidence.issue?.risk === "High"
-    || (evidence.issue?.high_risk_flags ?? []).some((flag) => new Set(["security", "auth", "data", "migration"]).has(flag));
+  requirePass(conditionalReviewPassed(evidence.reviews?.design, evidence.current_sha, executionSource), "Design review is required and lacks independent evidence, or NOT_REQUIRED lacks a reason.");
+  requirePass(conditionalReviewPassed(evidence.reviews?.security, evidence.current_sha, executionSource), "Security review is required and lacks independent evidence, or NOT_REQUIRED lacks a reason.");
+  const highRisk = !riskMetadataValid || subject?.risk === "High"
+    || (subject?.high_risk_flags ?? []).some((flag) => new Set(["security", "auth", "data", "migration"]).has(flag));
   if (highRisk) {
     requirePass(
-      reviewPassed(evidence.reviews?.security, evidence.current_sha, workerSource)
+      reviewPassed(evidence.reviews?.security, evidence.current_sha, executionSource)
         && new Set(["top_level_task", "human"]).has(evidence.reviews.security.source.scope),
       "High-risk work requires security evidence from a separate top-level review task or named human.",
     );

@@ -17,17 +17,17 @@ An empty Ready wave is not itself a blocker. Use `materialization_only`, approve
 
 Run `gh auth status` and verify repository access plus Project scope, or prove equivalent GitHub App/API coverage with non-mutating probes. Reauthorize before retrying. Do not substitute browser clicks for typed, idempotent multi-item readback and do not repeat an ambiguous mutation until a stable plan ID search proves it was not created.
 
-## Root PR validation did not start
+## Configured PR validation did not start
 
-Confirm the PR targets `main`, Actions are enabled, `.github/workflows/pr-validation.yml` exists on the PR head, and the workflow is not skipped or disabled in the repository Actions UI. Use `workflow_dispatch` only to diagnose the same committed workflow; a manual local PASS does not replace the missing PR checks.
+Confirm the PR targets the configured default branch, Actions are enabled, the repository's recorded PR workflow exists on the PR head, and it is not skipped or disabled in the Actions UI. Compare successful check-run names with the host-owned project runbook. Use manual dispatch only to diagnose the same committed workflow; a local PASS does not replace missing remote checks.
 
-## Production preview is unavailable in `PR Validation / visual`
+## Production preview is unavailable
 
-Open the failed step and inspect `preview.log`. Verify the production build succeeded, the preview process stayed alive, and `http://127.0.0.1:4173/automaticDevelopment/` returned a successful response before Chromium ran. Keep the check failed until the URL is genuinely reachable; do not bypass the readiness loop.
+Open the failed check and inspect its preview log. Verify the production build succeeded, the preview process stayed alive, and the exact isolated `PREVIEW_URL` recorded by the workflow returned a successful response before browser validation ran. Keep the check failed until that URL is genuinely reachable; do not bypass the readiness loop.
 
 ## Visual failure artifacts are missing
 
-The failed visual job must upload `pr-visual-failure-<run>-<attempt>` from `test-results/`. If no artifact exists, inspect the artifact-upload step: `if-no-files-found: error` should keep the job failed. Restore preview/browser logs and screenshots rather than accepting a result without visual evidence.
+The failed visual job must upload the repository's recorded preview/browser logs and screenshots from its configured artifact location. If no artifact exists, require the upload step to fail when no files are found. Restore evidence rather than accepting a result without it.
 
 ## `agent-ready` keeps disappearing
 
@@ -49,13 +49,17 @@ Inspect `git status --short`, identify the sole write owner, and either commit i
 
 Query open and closed PRs for the Issue, branch, and SHA before doing anything else. If no PR exists, rebuild/rerun admission and make one new attempt. Do not delete or edit the consumption record by hand and do not retry the PR tool blindly.
 
+## PR creation target does not match admission
+
+Read the marker and remote state; do not edit the marker. Invoke exactly one Draft PR creation with explicit repository, head branch, and base branch matching the admitted target. For shell usage, pass `--repo`, `--head`, `--base`, and `--draft` directly without substitutions, wrappers, or compound commands. A changed repository, branch, base, config, or SHA requires fresh admission.
+
 ## Existing failure blocks admission
 
 Prove it on the base revision, link a separate open Bug Issue, and show the current change neither created nor touched it. Without all three, treat it as a regression.
 
 ## Installer reports `MERGE REQUIRED`
 
-No files were written. Review the printed kit and host paths, merge the policy intentionally, then rerun the same mode with `--accept-host <path>` for each reviewed host-owned file. `--force` cannot overwrite host-owned files.
+No files were written. For a host-owned path, review the printed kit and host versions, preserve the verified repository values, and rerun with `--accept-host <path>`. For a formerly customized managed path whose generic behavior now exists in core, review the new managed source and use upgrade-only `--force` to retire the override. Never use `--force` for host-owned files or keep repository-specific text in a managed file.
 
 ## No task/worktree tools
 

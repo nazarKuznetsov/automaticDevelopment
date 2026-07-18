@@ -36,18 +36,19 @@ scripts/install-kit.sh --target /path/to/target-repo --dry-run
 scripts/install-kit.sh --target /path/to/target-repo --upgrade
 ```
 
-An unchanged kit-origin file can update safely. A locally modified file produces `MERGE REQUIRED: <path>` and no writes. A host-preserved file requires a new explicit merge acknowledgment when the kit version changes. `--force` is valid only during upgrade and may overwrite only a managed path already recorded in `.codex/kit-lock.json`; it cannot claim or overwrite a pre-existing file during first install. It never bypasses conflicts for host-owned policy, templates, workflows, product contract, hooks configuration, or `.codex/agent-workflow.json`.
+An unchanged kit-origin file can update safely. A locally modified file produces `MERGE REQUIRED: <path>` and no writes. A host-preserved file requires a new explicit acknowledgment when the kit version changes. `--force` is valid only during upgrade and may overwrite only a managed path already recorded in `.codex/kit-lock.json`; use it after review to retire a managed override whose generic behavior now ships in core. It cannot claim or overwrite a pre-existing file during first install, and never bypasses conflicts for host-owned policy, templates, workflows, product contract, project runbook, hooks configuration, or `.codex/agent-workflow.json`.
 
 ## Configure the target
 
 1. Complete and approve `docs/product/canonical.md`.
-2. Fill `.codex/agent-workflow.json` with repository/Project metadata and real targeted/full/integration validation commands; set `configured: true` only after verifying them. Keep device IDs, task IDs, worktree paths, tokens, and secrets out.
-3. Create Project fields and labels described in `docs/guide/github-model.md`.
-4. Review and trust `.codex/hooks.json` with Codex `/hooks`.
-5. Configure ruleset required checks and human review.
-6. Save the repository as a Codex project and probe fresh top-level managed-worktree task creation; do not use `fork_thread` for Workers.
-7. Use `$github-project-planner` in a fresh read-only task to propose a revision-bound roadmap/current wave, then approve it.
-8. Use a fresh `$github-agent-orchestrator` task with an approved Start Packet to materialize and execute only that wave.
+2. Fill `.codex/agent-workflow.json` with repository/Project metadata and real targeted/full/integration validation commands; set `configured: true` only after verifying them. Keep optional `bootstrap` and `canonical_publication` values `null` unless a human has approved one exact target.
+3. Record verified repository facts, observed check names, protection readback, and any active exact admission authority in host-owned `docs/project-workflow-runbook.md`. Keep device IDs, worktree paths, tokens, and secrets out.
+4. Create Project fields and labels described in `docs/guide/github-model.md`.
+5. Review and trust `.codex/hooks.json` with Codex `/hooks`.
+6. Configure ruleset required checks and human review.
+7. Save the repository as a Codex project and probe fresh top-level managed-worktree task creation; do not use `fork_thread` for Workers.
+8. Use `$github-project-planner` in a fresh read-only task to propose a revision-bound roadmap/current wave, then approve it.
+9. Use a fresh `$github-agent-orchestrator` task with an approved Start Packet to materialize and execute only that wave.
 
 For a repository that already used workflow v1, do not follow new-project bootstrap blindly. Use [Existing Products](kit/repo/docs/guide/existing-products.md) to drain v1 work, reconcile managed/host collisions, migrate the existing Project in place, establish a SHA-bound baseline, and invoke Planner in continuation mode.
 

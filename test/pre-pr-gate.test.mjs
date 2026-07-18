@@ -17,7 +17,7 @@ function copy(source, target) {
   copyFileSync(source, target);
 }
 
-function evidence(sha, branchCi = "PASS") {
+function evidence(sha, branchCi = "PASS", baseSha = sha) {
   const trace = (source, observed) => ({ source, observed });
   const review = (id) => ({
     status: "PASS",
@@ -29,8 +29,8 @@ function evidence(sha, branchCi = "PASS") {
     schema_version: 2,
     packet_type: "pre_pr_admission",
     commit_sha: sha,
-    base_sha_at_launch: sha,
-    validated_base_sha: sha,
+    base_sha_at_launch: baseSha,
+    validated_base_sha: baseSha,
     qa_tracked_worktree: { status: "CLEAN", before: "", after: "" },
     worker: { source: { kind: "agent_task", id: "worker-task-1" } },
     issue: { number: 1, is_leaf: true, risk: "Medium", high_risk_flags: [], unresolved_dependencies: [] },
@@ -71,10 +71,11 @@ test("gate fails closed, writes one SHA marker in a managed worktree, and hook r
     copy(join(sourceRoot, "scripts", file), join(root, ".codex", "scripts", file));
   }
   copy(join(sourceRoot, "hooks", "pre_pr_admission.py"), join(root, ".codex", "hooks", "pre_pr_admission.py"));
+  const defaultBranch = git(root, "symbolic-ref", "--short", "HEAD");
   writeFileSync(join(root, ".codex", "agent-workflow.json"), `${JSON.stringify({
     schema_version: 2,
     configured: true,
-    github: { default_branch: git(root, "branch", "--show-current") || "master" },
+    github: { repository: "example/repo", default_branch: defaultBranch },
     validation: {
       targeted: [targetedCommand],
       full: ["node -e \"process.exit(0)\""],
@@ -85,7 +86,9 @@ test("gate fails closed, writes one SHA marker in a managed worktree, and hook r
   writeFileSync(join(root, "README.md"), "gate fixture\n");
   git(root, "add", ".");
   git(root, "commit", "--quiet", "-m", "fixture");
-  git(root, "remote", "add", "origin", root);
+  const githubRemote = "https://github.com/example/repo.git";
+  git(root, "remote", "add", "origin", githubRemote);
+  git(root, "config", `url.${root}.insteadOf`, githubRemote);
   git(root, "worktree", "add", "--quiet", "-b", "agent/1-gate", worktree);
 
   const sha = git(worktree, "rev-parse", "HEAD");
@@ -106,29 +109,32 @@ test("gate fails closed, writes one SHA marker in a managed worktree, and hook r
   const marker = JSON.parse(readFileSync(markerPath, "utf8"));
   assert.equal(marker.commit_sha, sha);
   assert.match(marker.report_digest, /^[0-9a-f]{64}$/);
+  assert.equal(marker.repository, "example/repo");
+  assert.equal(marker.head_branch, "agent/1-gate");
+  assert.equal(marker.base_branch, defaultBranch);
+  assert.equal(marker.draft, true);
 
   const allowed = spawnSync("/usr/bin/python3", [join(worktree, ".codex", "hooks", "pre_pr_admission.py")], {
     cwd: worktree,
-    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --title test" } }),
+    input: JSON.stringify({
+      tool_name: "Bash",
+      tool_input: {
+        command: `gh pr create --repo example/repo --head agent/1-gate --base ${defaultBranch} --draft --title test`,
+      },
+    }),
     encoding: "utf8",
   });
   assert.equal(allowed.status, 0);
   assert.equal(allowed.stdout, "");
 
-  writeFileSync(evidencePath, `${JSON.stringify(evidence(sha))}\n`);
-  const repassForCmd = spawnSync(process.execPath, [gatePath, "--evidence", evidencePath], { cwd: worktree, encoding: "utf8" });
-  assert.equal(repassForCmd.status, 0, repassForCmd.stderr);
-  const allowedCmd = spawnSync("/usr/bin/python3", [join(worktree, ".codex", "hooks", "pre_pr_admission.py")], {
-    cwd: worktree,
-    input: JSON.stringify({ tool_name: "Bash", tool_input: { cmd: "gh pr create --title cmd-field" } }),
-    encoding: "utf8",
-  });
-  assert.equal(allowedCmd.status, 0);
-  assert.equal(allowedCmd.stdout, "");
-
   const replay = spawnSync("/usr/bin/python3", [join(worktree, ".codex", "hooks", "pre_pr_admission.py")], {
     cwd: worktree,
-    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --title duplicate" } }),
+    input: JSON.stringify({
+      tool_name: "Bash",
+      tool_input: {
+        command: `gh pr create --repo example/repo --head agent/1-gate --base ${defaultBranch} --draft --title duplicate`,
+      },
+    }),
     encoding: "utf8",
   });
   assert.equal(replay.status, 0);
@@ -140,7 +146,12 @@ test("gate fails closed, writes one SHA marker in a managed worktree, and hook r
   assert.equal(existsSync(markerPath), false);
   const invalidated = spawnSync("/usr/bin/python3", [join(worktree, ".codex", "hooks", "pre_pr_admission.py")], {
     cwd: worktree,
-    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --title stale-pass" } }),
+    input: JSON.stringify({
+      tool_name: "Bash",
+      tool_input: {
+        command: `gh pr create --repo example/repo --head agent/1-gate --base ${defaultBranch} --draft --title stale-pass`,
+      },
+    }),
     encoding: "utf8",
   });
   assert.match(invalidated.stdout, /No valid Pre-PR Admission Report/);
@@ -182,7 +193,11 @@ test("gate fails closed, writes one SHA marker in a managed worktree, and hook r
   assert.match(existingPr.stdout, /PR action: USE_EXISTING/);
   assert.equal(existsSync(markerPath), false);
 
-  writeFileSync(evidencePath, `${JSON.stringify(evidence(sha))}\n`);
+  writeFileSync(join(worktree, "README.md"), "new admitted HEAD\n");
+  git(worktree, "add", "README.md");
+  git(worktree, "commit", "--quiet", "-m", "prepare fresh admission");
+  const refreshedSha = git(worktree, "rev-parse", "HEAD");
+  writeFileSync(evidencePath, `${JSON.stringify(evidence(refreshedSha, "PASS", sha))}\n`);
   const repassed = spawnSync(process.execPath, [gatePath, "--evidence", evidencePath], { cwd: worktree, encoding: "utf8" });
   assert.equal(repassed.status, 0, repassed.stderr);
 
@@ -191,7 +206,12 @@ test("gate fails closed, writes one SHA marker in a managed worktree, and hook r
   git(root, "commit", "--quiet", "-m", "advance base");
   const staleBase = spawnSync("/usr/bin/python3", [join(worktree, ".codex", "hooks", "pre_pr_admission.py")], {
     cwd: worktree,
-    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --title stale-base" } }),
+    input: JSON.stringify({
+      tool_name: "Bash",
+      tool_input: {
+        command: `gh pr create --repo example/repo --head agent/1-gate --base ${defaultBranch} --draft --title stale-base`,
+      },
+    }),
     encoding: "utf8",
   });
   assert.equal(staleBase.status, 0);

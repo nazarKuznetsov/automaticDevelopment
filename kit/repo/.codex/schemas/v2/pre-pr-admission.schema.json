@@ -2,7 +2,21 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Pre-PR Admission Evidence v2",
   "type": "object",
-  "required": ["schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha", "qa_tracked_worktree", "worker", "issue", "acceptance", "tdd", "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates"],
+  "required": ["schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha", "qa_tracked_worktree", "acceptance", "tdd", "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates"],
+  "oneOf": [
+    {
+      "required": ["worker", "issue"],
+      "not": { "anyOf": [{ "required": ["executor"] }, { "required": ["bootstrap"] }, { "required": ["publisher"] }, { "required": ["canonical_publication"] }] }
+    },
+    {
+      "required": ["executor", "bootstrap"],
+      "not": { "anyOf": [{ "required": ["worker"] }, { "required": ["issue"] }, { "required": ["publisher"] }, { "required": ["canonical_publication"] }] }
+    },
+    {
+      "required": ["publisher", "canonical_publication"],
+      "not": { "anyOf": [{ "required": ["worker"] }, { "required": ["issue"] }, { "required": ["executor"] }, { "required": ["bootstrap"] }] }
+    }
+  ],
   "properties": {
     "schema_version": { "const": 2 },
     "packet_type": { "const": "pre_pr_admission" },
@@ -21,12 +35,62 @@
       "properties": { "source": { "$ref": "#/$defs/source" } },
       "additionalProperties": false
     },
+    "executor": {
+      "type": "object",
+      "required": ["source"],
+      "properties": { "source": { "$ref": "#/$defs/source" } },
+      "additionalProperties": false
+    },
+    "publisher": {
+      "type": "object",
+      "required": ["source"],
+      "properties": { "source": { "$ref": "#/$defs/source" } },
+      "additionalProperties": false
+    },
     "issue": {
       "type": "object",
       "required": ["number", "is_leaf", "risk", "high_risk_flags", "unresolved_dependencies"],
       "properties": {
         "number": { "type": "integer", "minimum": 1 },
         "is_leaf": { "const": true },
+        "risk": { "enum": ["Low", "Medium", "High"] },
+        "high_risk_flags": { "type": "array", "items": { "enum": ["security", "auth", "data", "migration"] }, "uniqueItems": true },
+        "unresolved_dependencies": { "type": "array", "maxItems": 0 }
+      },
+      "additionalProperties": false
+    },
+    "bootstrap": {
+      "type": "object",
+      "required": ["authority", "repository", "branch", "canonical_revision", "risk", "high_risk_flags", "unresolved_dependencies"],
+      "properties": {
+        "authority": { "const": "one-time-automated-control-plane-bootstrap" },
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "branch": { "type": "string", "pattern": "^agent/bootstrap-[a-z0-9][a-z0-9-]*$" },
+        "canonical_revision": { "type": "string", "minLength": 1 },
+        "risk": { "enum": ["Low", "Medium", "High"] },
+        "high_risk_flags": { "type": "array", "items": { "enum": ["security", "auth", "data", "migration"] }, "uniqueItems": true },
+        "unresolved_dependencies": { "type": "array", "maxItems": 0 }
+      },
+      "additionalProperties": false
+    },
+    "canonical_publication": {
+      "type": "object",
+      "required": ["authority", "repository", "branch", "canonical_revision", "approved_by", "approval_source", "risk", "high_risk_flags", "unresolved_dependencies"],
+      "properties": {
+        "authority": { "const": "human-approved-canonical-publication" },
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "branch": { "type": "string", "pattern": "^agent/canonical-brief-[a-z0-9][a-z0-9-]*$" },
+        "canonical_revision": { "type": "string", "minLength": 1 },
+        "approved_by": { "type": "string", "minLength": 1 },
+        "approval_source": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "const": "codex_task" },
+            "id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" }
+          },
+          "additionalProperties": false
+        },
         "risk": { "enum": ["Low", "Medium", "High"] },
         "high_risk_flags": { "type": "array", "items": { "enum": ["security", "auth", "data", "migration"] }, "uniqueItems": true },
         "unresolved_dependencies": { "type": "array", "maxItems": 0 }

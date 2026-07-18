@@ -29,6 +29,7 @@ const required = [
   "kit/repo/.codex/scripts/pre-pr-gate.mjs",
   "kit/repo/.github/workflows/agent-branch-validation.yml",
   "kit/repo/.github/workflows/readiness-audit.yml",
+  "kit/repo/docs/project-workflow-runbook.md",
   "kit/repo/docs/product/canonical.md",
 ];
 
@@ -37,7 +38,7 @@ for (const path of required) {
 }
 
 const manifest = JSON.parse(readFileSync(join(root, "kit", "manifest.json"), "utf8"));
-if (manifest.schema_version !== 2 || manifest.kit_version !== "2.0.1") fail("manifest is not workflow v2.0.1");
+if (manifest.schema_version !== 2 || manifest.kit_version !== "2.0.2") fail("manifest is not workflow v2.0.2");
 const manifestPaths = manifest.files.map((entry) => entry.path).sort();
 const kitFiles = filesUnder(kitRoot);
 if (JSON.stringify(manifestPaths) !== JSON.stringify(kitFiles)) {
@@ -46,6 +47,20 @@ if (JSON.stringify(manifestPaths) !== JSON.stringify(kitFiles)) {
   fail(`manifest drift; missing=[${missing.join(", ")}] stale=[${stale.join(", ")}]`);
 }
 if (manifest.files.some((entry) => !new Set(["host", "managed"]).has(entry.ownership))) fail("manifest has invalid ownership");
+const ownership = Object.fromEntries(manifest.files.map((entry) => [entry.path, entry.ownership]));
+for (const path of [".codex/agent-workflow.json", "docs/project-workflow-runbook.md"]) {
+  if (ownership[path] !== "host") fail(`${path} must be host-owned`);
+}
+for (const path of [
+  ".codex/hooks/pre_pr_admission.py",
+  ".codex/schemas/v2/pre-pr-admission.schema.json",
+  ".codex/scripts/pre-pr-gate.mjs",
+  ".codex/scripts/workflow-contract.mjs",
+  "docs/guide/operations.md",
+  "docs/guide/pre-pr-gate.md",
+]) {
+  if (ownership[path] !== "managed") fail(`${path} must be managed`);
+}
 
 const guideFiles = kitFiles.filter((path) => path.startsWith("docs/guide/") && path.endsWith(".md"));
 const expectedGuide = ["contracts", "design-gate", "existing-products", "github-model", "human-gates", "lifecycle", "operations", "orchestration", "planning", "pre-pr-gate", "quickstart", "troubleshooting", "worker-tdd"];
@@ -100,6 +115,7 @@ const textFiles = kitFiles.filter((path) => /\.(md|yml|yaml|toml|mjs|cjs|py|json
 for (const path of textFiles) {
   const content = readFileSync(join(kitRoot, path), "utf8");
   if (/\bTO[D]O\b|\bT[B]D\b/.test(content)) fail(`${path} contains unresolved placeholder text`);
+  if (path.startsWith("docs/guide/") && /BotBasketFlow/.test(content)) fail(`${path} contains repository-specific product text`);
 }
 
 console.log(`PASS: workflow v2 validated (${kitFiles.length} kit files, ${guideFiles.length} canonical guide pages)`);

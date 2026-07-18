@@ -87,6 +87,12 @@ function passingAdmission(overrides = {}) {
     validated_base_sha: "def5678def5678def5678def5678def5678def56",
     current_base_sha: "def5678def5678def5678def5678def5678def56",
     current_branch: "agent/1-export-report",
+    raw_evidence_keys: [
+      "schema_version", "packet_type", "commit_sha", "base_sha_at_launch",
+      "validated_base_sha", "qa_tracked_worktree", "gate_tracked_worktree",
+      "worker", "issue", "acceptance", "tdd", "local_validation", "reviews",
+      "branch_ci", "baseline", "documentation", "rollout", "human_gates",
+    ],
     qa_tracked_worktree: { status: "CLEAN", before: "", after: "" },
     gate_tracked_worktree: { status: "CLEAN", before: "", after: "" },
     configured_validation: {
@@ -122,6 +128,85 @@ function passingAdmission(overrides = {}) {
     human_gates: { status: "CLEAR", reason: "No unresolved gate remains; human merge approval is still required." },
     ...overrides,
   };
+}
+
+function passingBootstrapAdmission() {
+  const packet = passingAdmission();
+  delete packet.worker;
+  delete packet.issue;
+  packet.current_branch = "agent/bootstrap-control-plane";
+  packet.executor = { source: { kind: "agent_task", id: "bootstrap-task-1" } };
+  packet.bootstrap = {
+    authority: "one-time-automated-control-plane-bootstrap",
+    repository: "acme/example",
+    branch: "agent/bootstrap-control-plane",
+    canonical_revision: "canonical-r1",
+    risk: "Low",
+    high_risk_flags: [],
+    unresolved_dependencies: [],
+  };
+  packet.configured_bootstrap = {
+    authority: "one-time-automated-control-plane-bootstrap",
+    repository: "acme/example",
+    branch: "agent/bootstrap-control-plane",
+    base_sha: packet.current_base_sha,
+    canonical_revision: "canonical-r1",
+  };
+  packet.raw_evidence_keys = packet.raw_evidence_keys
+    .filter((key) => !new Set(["worker", "issue"]).has(key))
+    .concat(["executor", "bootstrap"]);
+  return packet;
+}
+
+function passingCanonicalPublicationAdmission() {
+  const packet = passingAdmission();
+  delete packet.worker;
+  delete packet.issue;
+  packet.current_branch = "agent/canonical-brief-r2";
+  packet.publisher = { source: { kind: "agent_task", id: "publisher-task-1" } };
+  packet.canonical_publication = {
+    authority: "human-approved-canonical-publication",
+    repository: "acme/example",
+    branch: "agent/canonical-brief-r2",
+    canonical_revision: "canonical-r2",
+    approved_by: "product-owner",
+    approval_source: { kind: "codex_task", id: "019f6c94-446a-7f21-a819-0c9bb64fb582" },
+    risk: "Medium",
+    high_risk_flags: [],
+    unresolved_dependencies: [],
+  };
+  packet.configured_canonical_publication = {
+    authority: "human-approved-canonical-publication",
+    repository: "acme/example",
+    branch: "agent/canonical-brief-r2",
+    canonical_revision: "canonical-r2",
+    approved_by: "product-owner",
+    approval_source: { kind: "codex_task", id: "019f6c94-446a-7f21-a819-0c9bb64fb582" },
+    base_binding: "authoritative-origin-default-branch-at-launch",
+    superseded_revision: "canonical-r1",
+    allowed_paths: ["docs/product/canonical.md", "test/canonical-contract.test.mjs"],
+    supersession_text: "Supersedes canonical-r1 only after merge and post-merge validation.",
+    content_hashes: {
+      "docs/product/canonical.md": "1".repeat(64),
+      "test/canonical-contract.test.mjs": "2".repeat(64),
+    },
+  };
+  packet.canonical_tree_state = {
+    changed_paths: ["docs/product/canonical.md", "test/canonical-contract.test.mjs"],
+    base_revision: "canonical-r1",
+    current_revision: "canonical-r2",
+    current_approved_by: "product-owner",
+    current_text: "Supersedes canonical-r1 only after merge and post-merge validation.",
+    config_unchanged: true,
+    content_hashes: {
+      "docs/product/canonical.md": "1".repeat(64),
+      "test/canonical-contract.test.mjs": "2".repeat(64),
+    },
+  };
+  packet.raw_evidence_keys = packet.raw_evidence_keys
+    .filter((key) => !new Set(["worker", "issue"]).has(key))
+    .concat(["publisher", "canonical_publication"]);
+  return packet;
 }
 
 test("capability profiles keep organization-only features optional", () => {
@@ -724,6 +809,47 @@ test("finding loop distinguishes in-scope, independent, duplicate, and high-risk
   assert.equal(classifyFinding({ within_scope: true, severity: "High", evidence_complete: true }).action, "HUMAN_ACTION_REQUIRED");
   assert.equal(classifyFinding({ within_scope: false, severity: "Unknown", evidence_complete: true }).action, "REQUEST_EVIDENCE");
   assert.equal(classifyFinding({ within_scope: false, severity: "Low", evidence_complete: false }).action, "REQUEST_EVIDENCE");
+});
+
+test("admission accepts exactly one configured Issue, bootstrap, or Canonical publication subject", () => {
+  assert.equal(evaluateAdmission(passingAdmission()).status, "PASS");
+  assert.equal(evaluateAdmission(passingBootstrapAdmission()).status, "PASS");
+  assert.equal(evaluateAdmission(passingCanonicalPublicationAdmission()).status, "PASS");
+
+  for (const mutate of [
+    (packet) => { packet.bootstrap.repository = "other/repository"; },
+    (packet) => { packet.bootstrap.branch = "agent/bootstrap-other"; },
+    (packet) => { packet.configured_bootstrap.base_sha = "0".repeat(40); },
+  ]) {
+    const packet = passingBootstrapAdmission();
+    mutate(packet);
+    assert.equal(evaluateAdmission(packet).status, "FAIL");
+  }
+
+  for (const mutate of [
+    (packet) => { packet.canonical_publication.repository = "other/repository"; },
+    (packet) => { packet.canonical_publication.approval_source.id = "other-task"; },
+    (packet) => { packet.canonical_tree_state.changed_paths.push("src/product.js"); },
+    (packet) => { packet.canonical_tree_state.content_hashes["docs/product/canonical.md"] = "0".repeat(64); },
+    (packet) => { packet.canonical_tree_state.config_unchanged = false; },
+    (packet) => {
+      delete packet.configured_canonical_publication.content_hashes["test/canonical-contract.test.mjs"];
+      delete packet.canonical_tree_state.content_hashes["test/canonical-contract.test.mjs"];
+    },
+  ]) {
+    const packet = passingCanonicalPublicationAdmission();
+    mutate(packet);
+    assert.equal(evaluateAdmission(packet).status, "FAIL");
+  }
+
+  const mixed = passingCanonicalPublicationAdmission();
+  mixed.worker = { source: { kind: "agent_task", id: "invented-worker" } };
+  mixed.issue = { number: 2, is_leaf: true, risk: "Low", high_risk_flags: [], unresolved_dependencies: [] };
+  assert.equal(evaluateAdmission(mixed).status, "FAIL");
+
+  const unknown = passingCanonicalPublicationAdmission();
+  unknown.raw_evidence_keys.push("invented_authority");
+  assert.equal(evaluateAdmission(unknown).status, "FAIL");
 });
 
 test("admission rejects branch CI failure and never authorizes a PR", () => {

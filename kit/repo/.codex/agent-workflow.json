@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "kit_version": "2.0.1",
+  "kit_version": "2.0.2",
   "configured": false,
   "github": {
     "repository": "",
@@ -60,6 +60,8 @@
     "require_fresh_base": true,
     "automatic_low_risk_merge": false
   },
+  "bootstrap": null,
+  "canonical_publication": null,
   "baseline_policy": {
     "allow_legacy_failures": true,
     "require_bug_issue": true,

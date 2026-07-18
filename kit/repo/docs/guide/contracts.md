@@ -15,6 +15,8 @@ slug: contracts
 
 `.codex/agent-workflow.json` is versioned, repository-scoped, and secret-free. It defines Project metadata, exact validation, wave-scoped fresh-task execution, managed worktrees, disjoint conflict-key parallelism, single write owner, depth/concurrency limits, heartbeat/stale claims, baseline, gates, and exact-SHA merge policy.
 
+Optional `bootstrap` and `canonical_publication` blocks bind narrow no-Issue admission to exact human-approved targets. Leave them `null` unless active, use values read from authoritative repository/task state, and retire them after use. Repository facts and operational readback are explained in the host-owned `docs/project-workflow-runbook.md`; managed guide files never contain project values.
+
 Never store tokens, secrets, device-local Project IDs, canonical task IDs as configuration, or absolute worktree paths. Discover saved-project/task/worktree capability at runtime. `configured: false` fails closed.
 
 ## Packet schemas
@@ -30,6 +32,8 @@ Never store tokens, secrets, device-local Project IDs, canonical task IDs as con
 - Merge Authorization and Phase Exit.
 
 Task/worktree IDs may appear in GitHub evidence; absolute local filesystem paths may not. Packets use `schema_version: 2` and a fixed `packet_type`.
+
+Pre-PR Admission uses exactly one subject pair: Worker/Issue, executor/bootstrap, or publisher/Canonical publication. The latter two do not grant product scope, Issue materialization, or merge authority. Mixed subject fields, unconfigured targets, changed config, unknown raw fields, stale base, or content outside an approved Canonical publication path/hash set fail closed.
 
 Global Roadmap and Phase Plan are indivisible machine contracts, not prose templates. Every materializable item has an exact title and complete Project metadata; every dependency has typed `blocking`/`blocked` IDs; the Phase Plan selects its durable report parent. Both packets carry deterministic content digests, and human approval binds exact revisions/digests plus a named identity. The Orchestrator must recompute and validate both before writes.
 
