@@ -2,12 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Global Roadmap Packet v2",
   "type": "object",
-  "required": ["schema_version", "packet_type", "canonical_brief_revision", "current_phase", "phases", "human_approvals"],
+  "required": [
+    "schema_version",
+    "packet_type",
+    "revision",
+    "packet_digest",
+    "canonical_brief_revision",
+    "current_phase",
+    "phases",
+    "human_approvals"
+  ],
   "properties": {
     "schema_version": { "const": 2 },
     "packet_type": { "const": "global_roadmap" },
+    "revision": { "type": "string", "minLength": 1 },
+    "packet_digest": { "$ref": "#/$defs/digest" },
     "canonical_brief_revision": { "type": "string", "minLength": 1 },
-    "current_phase": { "enum": ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"] },
+    "current_phase": { "$ref": "#/$defs/phase" },
     "phases": {
       "type": "array",
       "minItems": 8,
@@ -16,28 +27,102 @@
         "type": "object",
         "required": ["phase", "outcomes", "epics", "dependencies", "risks", "entry_criteria", "exit_criteria"],
         "properties": {
-          "phase": { "type": "string", "minLength": 1 },
-          "outcomes": { "type": "array" },
+          "phase": { "$ref": "#/$defs/phase" },
+          "outcomes": { "$ref": "#/$defs/string_list" },
           "epics": {
             "type": "array",
+            "minItems": 1,
             "items": {
               "type": "object",
-              "required": ["plan_item_id", "title"],
+              "required": ["plan_item_id", "title", "work_type", "priority", "size", "risk", "qa_required", "status"],
               "properties": {
-                "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
-                "title": { "type": "string", "minLength": 1 }
+                "plan_item_id": { "$ref": "#/$defs/plan_item_id" },
+                "title": { "type": "string", "minLength": 1 },
+                "work_type": { "const": "Epic" },
+                "priority": { "$ref": "#/$defs/priority" },
+                "size": { "$ref": "#/$defs/size" },
+                "risk": { "$ref": "#/$defs/risk" },
+                "qa_required": { "$ref": "#/$defs/qa_required" },
+                "status": { "$ref": "#/$defs/materialization_status" }
               },
-              "additionalProperties": true
+              "additionalProperties": false
             }
           },
-          "dependencies": { "type": "array" },
-          "risks": { "type": "array" },
-          "entry_criteria": { "type": "array" },
-          "exit_criteria": { "type": "array" }
+          "dependencies": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/dependency" }
+          },
+          "risks": { "$ref": "#/$defs/string_list" },
+          "entry_criteria": { "$ref": "#/$defs/string_list" },
+          "exit_criteria": { "$ref": "#/$defs/string_list" }
         },
         "additionalProperties": false
       }
     },
-    "human_approvals": { "type": "object", "required": ["roadmap", "current_phase_entry"] }
-  }
+    "human_approvals": {
+      "type": "object",
+      "required": ["roadmap", "current_phase_entry"],
+      "properties": {
+        "roadmap": {
+          "type": "object",
+          "required": ["status", "revision", "packet_digest"],
+          "properties": {
+            "status": { "enum": ["PENDING", "APPROVED", "REJECTED"] },
+            "revision": { "type": "string", "minLength": 1 },
+            "packet_digest": { "$ref": "#/$defs/digest" },
+            "approved_by": { "type": "string", "minLength": 1 }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "status": { "const": "APPROVED" } }, "required": ["status"] },
+              "then": { "required": ["approved_by"] }
+            }
+          ],
+          "additionalProperties": false
+        },
+        "current_phase_entry": {
+          "type": "object",
+          "required": ["status", "phase"],
+          "properties": {
+            "status": { "enum": ["PENDING", "APPROVED", "REJECTED"] },
+            "phase": { "$ref": "#/$defs/phase" },
+            "approved_by": { "type": "string", "minLength": 1 }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "status": { "const": "APPROVED" } }, "required": ["status"] },
+              "then": { "required": ["approved_by"] }
+            }
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+    "phase": { "enum": ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"] },
+    "priority": { "enum": ["P0", "P1", "P2", "P3"] },
+    "size": { "enum": ["XS", "S", "M", "L", "XL"] },
+    "risk": { "enum": ["Low", "Medium", "High"] },
+    "qa_required": { "enum": ["Yes", "No"] },
+    "materialization_status": { "enum": ["Backlog", "Ready"] },
+    "string_list": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "dependency": {
+      "type": "object",
+      "required": ["blocked", "blocking"],
+      "properties": {
+        "blocked": { "$ref": "#/$defs/plan_item_id" },
+        "blocking": { "$ref": "#/$defs/plan_item_id" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
 }

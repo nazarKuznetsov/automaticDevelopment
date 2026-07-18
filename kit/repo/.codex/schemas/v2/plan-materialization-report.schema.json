@@ -2,18 +2,50 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Plan Materialization Report v2",
   "type": "object",
-  "required": ["schema_version", "packet_type", "phase_plan_revision", "status", "mapping", "hierarchy_readback", "dependency_readback", "project_readback", "agent_ready_readback", "blockers"],
+  "required": [
+    "schema_version",
+    "packet_type",
+    "materialization_mode",
+    "global_roadmap_revision",
+    "global_roadmap_digest",
+    "phase_plan_revision",
+    "phase_plan_digest",
+    "report_parent_plan_item_id",
+    "report_parent_issue_url",
+    "report_url",
+    "status",
+    "mapping",
+    "hierarchy_readback",
+    "dependency_readback",
+    "project_readback",
+    "agent_ready_readback",
+    "blockers"
+  ],
   "properties": {
     "schema_version": { "const": 2 },
     "packet_type": { "const": "plan_materialization_report" },
+    "materialization_mode": { "enum": ["materialization_only", "wave_execution"] },
+    "global_roadmap_revision": { "type": "string", "minLength": 1 },
+    "global_roadmap_digest": { "$ref": "#/$defs/digest" },
     "phase_plan_revision": { "type": "string", "minLength": 1 },
+    "phase_plan_digest": { "$ref": "#/$defs/digest" },
+    "report_parent_plan_item_id": { "$ref": "#/$defs/plan_item_id" },
+    "report_parent_issue_url": { "$ref": "#/$defs/issue_url" },
+    "report_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://github\\.com/.+/issues/[0-9]+#issuecomment-[0-9]+$"
+    },
     "status": { "enum": ["PASS", "FAIL", "BLOCKED"] },
     "mapping": { "type": "array", "items": { "$ref": "#/$defs/mapping" } },
     "hierarchy_readback": { "type": "array", "items": { "$ref": "#/$defs/hierarchy" } },
     "dependency_readback": { "type": "array", "items": { "$ref": "#/$defs/dependency" } },
     "project_readback": { "type": "array", "items": { "$ref": "#/$defs/project" } },
     "agent_ready_readback": { "type": "array", "items": { "$ref": "#/$defs/ready" } },
-    "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
   },
   "allOf": [
     {
@@ -21,17 +53,51 @@
       "then": {
         "properties": {
           "mapping": { "minItems": 1 },
-          "hierarchy_readback": { "minItems": 1 },
           "project_readback": { "minItems": 1 },
-          "agent_ready_readback": { "minItems": 1 },
           "blockers": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "materialization_mode": { "const": "materialization_only" } },
+        "required": ["materialization_mode"]
+      },
+      "then": {
+        "properties": {
+          "agent_ready_readback": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "materialization_mode": { "const": "wave_execution" },
+          "status": { "const": "PASS" }
+        },
+        "required": ["materialization_mode", "status"]
+      },
+      "then": {
+        "properties": {
+          "agent_ready_readback": { "minItems": 1, "maxItems": 5 }
         }
       }
     }
   ],
   "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
-    "issue_url": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/.+/issues/[0-9]+$" },
+    "phase": { "enum": ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"] },
+    "work_type": { "enum": ["Epic", "Capability", "Task", "Bug", "Docs", "Automation", "Refactor"] },
+    "priority": { "enum": ["P0", "P1", "P2", "P3"] },
+    "size": { "enum": ["XS", "S", "M", "L", "XL"] },
+    "risk": { "enum": ["Low", "Medium", "High"] },
+    "qa_required": { "enum": ["Yes", "No"] },
+    "issue_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://github\\.com/.+/issues/[0-9]+$"
+    },
     "mapping": {
       "type": "object",
       "required": ["plan_item_id", "issue_number", "issue_url"],
@@ -64,10 +130,27 @@
     },
     "project": {
       "type": "object",
-      "required": ["plan_item_id", "project_item_id", "status", "observed"],
+      "required": [
+        "plan_item_id",
+        "project_item_id",
+        "phase",
+        "work_type",
+        "priority",
+        "size",
+        "risk",
+        "qa_required",
+        "status",
+        "observed"
+      ],
       "properties": {
         "plan_item_id": { "$ref": "#/$defs/plan_item_id" },
         "project_item_id": { "type": "string", "minLength": 1 },
+        "phase": { "$ref": "#/$defs/phase" },
+        "work_type": { "$ref": "#/$defs/work_type" },
+        "priority": { "$ref": "#/$defs/priority" },
+        "size": { "$ref": "#/$defs/size" },
+        "risk": { "$ref": "#/$defs/risk" },
+        "qa_required": { "$ref": "#/$defs/qa_required" },
         "status": { "enum": ["Backlog", "Ready"] },
         "observed": { "const": true }
       },

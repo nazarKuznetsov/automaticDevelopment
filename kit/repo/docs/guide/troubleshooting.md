@@ -7,6 +7,16 @@ slug: troubleshooting
 
 # Troubleshooting
 
+## Materialization stopped before GitHub writes
+
+This is the correct fail-closed result when either packet lacks an exact title/Project field, contains an unknown typed dependency, selects no valid report parent, has a stale digest/approval, or the Start Packet mode/authority does not match the Ready wave. Do not fill gaps in the Orchestrator chat and do not partially create Issues. Upgrade the managed kit files, run a fresh read-only Planner in Repair mode, validate the complete replacement packets locally, obtain exact revision/digest approval, then start a new Orchestrator task.
+
+An empty Ready wave is not itself a blocker. Use `materialization_only`, approve the complete materialization item set, grant zero Worker authority, and expect an empty `agent_ready_readback`.
+
+## GitHub authentication cannot mutate or read the Project
+
+Run `gh auth status` and verify repository access plus Project scope, or prove equivalent GitHub App/API coverage with non-mutating probes. Reauthorize before retrying. Do not substitute browser clicks for typed, idempotent multi-item readback and do not repeat an ambiguous mutation until a stable plan ID search proves it was not created.
+
 ## Root PR validation did not start
 
 Confirm the PR targets `main`, Actions are enabled, `.github/workflows/pr-validation.yml` exists on the PR head, and the workflow is not skipped or disabled in the repository Actions UI. Use `workflow_dispatch` only to diagnose the same committed workflow; a manual local PASS does not replace the missing PR checks.

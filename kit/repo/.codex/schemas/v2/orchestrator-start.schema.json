@@ -2,39 +2,59 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Orchestrator Start Packet v2",
   "type": "object",
-  "required": ["schema_version", "packet_type", "wave_id", "phase_plan_revision", "base_sha", "approved_plan_items", "authorization", "valid_until"],
+  "required": [
+    "schema_version",
+    "packet_type",
+    "mode",
+    "wave_id",
+    "global_roadmap_revision",
+    "global_roadmap_digest",
+    "phase_plan_revision",
+    "phase_plan_digest",
+    "base_sha",
+    "approved_plan_items",
+    "authorization",
+    "valid_until"
+  ],
   "properties": {
     "schema_version": { "const": 2 },
     "packet_type": { "const": "orchestrator_start" },
+    "mode": { "enum": ["materialization_only", "wave_execution"] },
     "wave_id": { "type": "string", "minLength": 1 },
+    "global_roadmap_revision": { "type": "string", "minLength": 1 },
+    "global_roadmap_digest": { "$ref": "#/$defs/digest" },
     "phase_plan_revision": { "type": "string", "minLength": 1 },
+    "phase_plan_digest": { "$ref": "#/$defs/digest" },
     "base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "approved_plan_items": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 5,
-      "items": {
-        "type": "object",
-        "required": ["plan_item_id", "conflict_keys"],
-        "properties": {
-          "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
-          "conflict_keys": { "$ref": "#/$defs/conflict_keys" }
-        },
-        "additionalProperties": false
-      }
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/plan_item" }
     },
     "authorization": {
       "type": "object",
-      "required": ["status", "create_top_level_worker_tasks", "managed_worktrees", "max_worker_launches", "max_concurrent_write_workers", "monitor_and_steer", "archive_after_done", "create_high_risk_review_tasks", "merge_requires_exact_sha_authorization"],
+      "required": [
+        "status",
+        "create_top_level_worker_tasks",
+        "managed_worktrees",
+        "max_worker_launches",
+        "max_concurrent_write_workers",
+        "monitor_and_steer",
+        "archive_after_done",
+        "create_high_risk_review_tasks",
+        "merge_requires_exact_sha_authorization",
+        "approved_by"
+      ],
       "properties": {
         "status": { "const": "APPROVED" },
-        "create_top_level_worker_tasks": { "const": true },
-        "managed_worktrees": { "const": true },
-        "max_worker_launches": { "const": 5 },
-        "max_concurrent_write_workers": { "const": 2 },
-        "monitor_and_steer": { "const": true },
-        "archive_after_done": { "const": true },
-        "create_high_risk_review_tasks": { "const": true },
+        "create_top_level_worker_tasks": { "type": "boolean" },
+        "managed_worktrees": { "type": "boolean" },
+        "max_worker_launches": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "max_concurrent_write_workers": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "monitor_and_steer": { "type": "boolean" },
+        "archive_after_done": { "type": "boolean" },
+        "create_high_risk_review_tasks": { "type": "boolean" },
         "merge_requires_exact_sha_authorization": { "const": true },
         "approved_by": { "type": "string", "minLength": 1 }
       },
@@ -42,12 +62,76 @@
     },
     "valid_until": { "type": "string", "format": "date-time" }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "mode": { "const": "materialization_only" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "authorization": {
+            "properties": {
+              "create_top_level_worker_tasks": { "const": false },
+              "managed_worktrees": { "const": false },
+              "max_worker_launches": { "const": 0 },
+              "max_concurrent_write_workers": { "const": 0 },
+              "monitor_and_steer": { "const": false },
+              "archive_after_done": { "const": false },
+              "create_high_risk_review_tasks": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "mode": { "const": "wave_execution" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "approved_plan_items": {
+            "minItems": 1,
+            "maxItems": 5,
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/plan_item" },
+                { "required": ["conflict_keys"] }
+              ]
+            }
+          },
+          "authorization": {
+            "properties": {
+              "create_top_level_worker_tasks": { "const": true },
+              "managed_worktrees": { "const": true },
+              "max_worker_launches": { "minimum": 1, "maximum": 5 },
+              "max_concurrent_write_workers": { "minimum": 1, "maximum": 2 },
+              "monitor_and_steer": { "const": true },
+              "archive_after_done": { "const": true },
+              "create_high_risk_review_tasks": { "const": true }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "conflict_keys": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    },
+    "plan_item": {
+      "type": "object",
+      "required": ["plan_item_id"],
+      "properties": {
+        "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+        "conflict_keys": { "$ref": "#/$defs/conflict_keys" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

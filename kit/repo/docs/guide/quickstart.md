@@ -37,7 +37,7 @@ Edit `.codex/agent-workflow.json`:
 
 Run `$project-brainstorm` in a separate read-only task and approve the exact Canonical Brief revision. Then run `$github-project-planner` in a fresh read-only task. Planner describes all phases, details only the current wave, plans Issues rather than hours, and makes no GitHub writes.
 
-After approving the exact Phase Plan revision, create a fresh top-level Orchestrator task with a Start Packet listing approved `plan_item_id` values—not nonexistent Issue numbers. Orchestrator materializes the approved hierarchy/dependencies/Project fields exactly, reads everything back, publishes `plan_item_id → Issue URL`, and only then applies `agent-ready` to passing leaves.
+After approving both exact packet revisions/digests, create a fresh top-level Orchestrator task with a Start Packet listing approved `plan_item_id` values—not nonexistent Issue numbers. Use `materialization_only` with zero Worker authority when the approved Ready wave is empty; use `wave_execution` only for one to five exact Ready leaves with matching conflict keys. Orchestrator validates before writes, materializes the approved hierarchy/dependencies/Project fields exactly, reads everything back, publishes `plan_item_id → Issue URL` plus a durable report comment, and only then applies `agent-ready` to passing leaves.
 
 ## New product brainstorm — EN
 
