@@ -42,8 +42,79 @@ test("apply installs new lifecycle packets and admission agent as managed files"
     ".codex/schemas/v2/wave-completion.schema.json",
   ]) assert.equal(existsSync(join(target, path)), true, path);
   const lock = JSON.parse(readFileSync(join(target, ".codex", "kit-lock.json"), "utf8"));
-  assert.equal(lock.kit_version, "2.0.1");
+  assert.equal(lock.kit_version, "2.0.2");
   assert.equal(lock.files[".codex/agents/admission-reviewer.toml"].ownership, "managed");
+});
+
+test("repository values stay host-owned while admission core installs and upgrades without managed overrides", () => {
+  const target = repository();
+  assert.equal(run(["--target", target, "--apply"]).status, 0);
+
+  const configPath = join(target, ".codex", "agent-workflow.json");
+  const config = JSON.parse(readFileSync(configPath, "utf8"));
+  config.configured = true;
+  config.github.repository = "acme/example";
+  config.bootstrap = {
+    authority: "one-time-automated-control-plane-bootstrap",
+    repository: "acme/example",
+    branch: "agent/bootstrap-control-plane",
+    base_sha: "a".repeat(40),
+    canonical_revision: "canonical-r1",
+  };
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+
+  const runbookPath = join(target, "docs", "project-workflow-runbook.md");
+  writeFileSync(runbookPath, readFileSync(runbookPath, "utf8").replace("<repository>", "acme/example"));
+
+  const upgrade = run([
+    "--target", target,
+    "--upgrade",
+    "--accept-host", ".codex/agent-workflow.json",
+    "--accept-host", "docs/project-workflow-runbook.md",
+  ]);
+  assert.equal(upgrade.status, 0, upgrade.stderr);
+  assert.doesNotMatch(`${upgrade.stdout}\n${upgrade.stderr}`, /MERGE REQUIRED/);
+
+  const managedAdmissionPaths = [
+    ".codex/hooks/pre_pr_admission.py",
+    ".codex/schemas/v2/pre-pr-admission.schema.json",
+    ".codex/scripts/pre-pr-gate.mjs",
+    ".codex/scripts/workflow-contract.mjs",
+    "docs/guide/operations.md",
+    "docs/guide/pre-pr-gate.md",
+  ];
+  for (const path of managedAdmissionPaths) {
+    assert.equal(
+      readFileSync(join(target, path), "utf8"),
+      readFileSync(join(repoRoot, "kit", "repo", path), "utf8"),
+      `${path} must remain an unmodified managed core file`,
+    );
+  }
+
+  const lock = JSON.parse(readFileSync(join(target, ".codex", "kit-lock.json"), "utf8"));
+  assert.equal(lock.files[".codex/agent-workflow.json"].ownership, "host");
+  assert.equal(lock.files["docs/project-workflow-runbook.md"].ownership, "host");
+  assert.equal(lock.files["docs/project-workflow-runbook.md"].content_origin, "host");
+
+  for (const path of managedAdmissionPaths) {
+    writeFileSync(join(target, path), `${readFileSync(join(target, path), "utf8")}\nLegacy managed override.\n`);
+  }
+  const retireOverrides = run([
+    "--target", target,
+    "--upgrade",
+    "--force",
+    "--accept-host", ".codex/agent-workflow.json",
+    "--accept-host", "docs/project-workflow-runbook.md",
+  ]);
+  assert.equal(retireOverrides.status, 0, retireOverrides.stderr);
+  assert.doesNotMatch(`${retireOverrides.stdout}\n${retireOverrides.stderr}`, /MERGE REQUIRED/);
+  for (const path of managedAdmissionPaths) {
+    assert.equal(
+      readFileSync(join(target, path), "utf8"),
+      readFileSync(join(repoRoot, "kit", "repo", path), "utf8"),
+      `${path} must be restored to managed core without a three-way merge`,
+    );
+  }
 });
 
 test("apply refuses a pre-existing host-owned AGENTS.md and prints a merge plan", () => {

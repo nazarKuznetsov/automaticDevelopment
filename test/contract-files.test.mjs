@@ -3,7 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-const kit = resolve(import.meta.dirname, "..", "kit", "repo");
+const root = resolve(import.meta.dirname, "..");
+const kit = join(root, "kit", "repo");
 
 function json(path) {
   return JSON.parse(readFileSync(join(kit, path), "utf8"));
@@ -11,7 +12,7 @@ function json(path) {
 
 test("workflow config pins wave-scoped fresh-task and exact-SHA merge defaults", () => {
   const workflow = json(".codex/agent-workflow.json");
-  assert.equal(workflow.kit_version, "2.0.1");
+  assert.equal(workflow.kit_version, "2.0.2");
   assert.deepEqual({
     orchestrator_scope: workflow.execution.orchestrator_scope,
     task_strategy: workflow.execution.task_strategy,
@@ -43,6 +44,34 @@ test("workflow config pins wave-scoped fresh-task and exact-SHA merge defaults",
   });
   assert.deepEqual(workflow.worktree, { setup_commands: [], required_paths: [], copy_ignored_files: false });
   assert.deepEqual(workflow.validation.integration, []);
+  assert.equal(workflow.bootstrap, null);
+  assert.equal(workflow.canonical_publication, null);
+});
+
+test("repository values are host-owned and managed documentation stays product-neutral", () => {
+  const manifest = JSON.parse(readFileSync(join(root, "kit", "manifest.json"), "utf8"));
+  const ownership = Object.fromEntries(manifest.files.map((entry) => [entry.path, entry.ownership]));
+  assert.equal(ownership[".codex/agent-workflow.json"], "host");
+  assert.equal(ownership["docs/project-workflow-runbook.md"], "host");
+  for (const path of [
+    ".codex/hooks/pre_pr_admission.py",
+    ".codex/schemas/v2/pre-pr-admission.schema.json",
+    ".codex/scripts/pre-pr-gate.mjs",
+    ".codex/scripts/workflow-contract.mjs",
+    "docs/guide/operations.md",
+    "docs/guide/pre-pr-gate.md",
+  ]) assert.equal(ownership[path], "managed", path);
+
+  for (const path of [
+    "docs/guide/contracts.md",
+    "docs/guide/existing-products.md",
+    "docs/guide/operations.md",
+    "docs/guide/pre-pr-gate.md",
+    "docs/guide/troubleshooting.md",
+  ]) {
+    const content = readFileSync(join(kit, path), "utf8");
+    assert.doesNotMatch(content, /BotBasketFlow|PR Validation \/ quality|PR Validation \/ visual/, path);
+  }
 });
 
 test("packet schemas cover task lifecycle without durable local paths", () => {
@@ -68,6 +97,12 @@ test("packet schemas cover task lifecycle without durable local paths", () => {
   const admission = json(".codex/schemas/v2/pre-pr-admission.schema.json");
   for (const field of ["base_sha_at_launch", "validated_base_sha", "qa_tracked_worktree"]) {
     assert.ok(admission.required.includes(field), `Pre-PR Admission missing ${field}`);
+  }
+  assert.equal(admission.required.includes("worker"), false);
+  assert.equal(admission.required.includes("issue"), false);
+  assert.equal(admission.oneOf.length, 3);
+  for (const field of ["worker", "issue", "executor", "bootstrap", "publisher", "canonical_publication"]) {
+    assert.ok(admission.properties[field], `Pre-PR Admission missing subject field ${field}`);
   }
   const start = json(".codex/schemas/v2/orchestrator-start.schema.json");
   for (const field of [

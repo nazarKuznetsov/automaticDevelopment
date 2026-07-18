@@ -1,4 +1,4 @@
 interface:
   display_name: "GitHub Pre-PR Reviewer"
-  short_description: "Audit exact-SHA admission independently"
-  default_prompt: "Use $github-pre-pr-reviewer as a distinct fresh admission agent to audit this exact Worker head/base SHA before PR creation."
+  short_description: "Audit exact-target PR admission"
+  default_prompt: "Use $github-pre-pr-reviewer as a distinct fresh admission agent to audit this exact subject, repository, head, base, and evidence before Draft PR creation."

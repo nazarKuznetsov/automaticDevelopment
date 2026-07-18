@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "kit_version": "2.0.1",
+  "kit_version": "2.0.2",
   "files": [
     { "path": ".agents/skills/github-agent-orchestrator/SKILL.md", "ownership": "managed" },
     { "path": ".agents/skills/github-agent-orchestrator/agents/openai.yaml", "ownership": "managed" },
@@ -67,6 +67,7 @@
     { "path": "docs/guide/troubleshooting.md", "ownership": "managed" },
     { "path": "docs/guide/worker-tdd.md", "ownership": "managed" },
     { "path": "docs/guide/assets/task-topology.svg", "ownership": "managed" },
+    { "path": "docs/project-workflow-runbook.md", "ownership": "host" },
     { "path": "docs/product/canonical.md", "ownership": "host" }
   ]
 }

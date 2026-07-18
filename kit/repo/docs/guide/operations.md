@@ -16,9 +16,11 @@ scripts/install-kit.sh --target /path/to/repo --dry-run
 scripts/install-kit.sh --target /path/to/repo --upgrade
 ```
 
-Upgrade overwrites an installed file only when its current hash still matches the lock. Modified files stop during collision preflight with exact `MERGE REQUIRED` paths. `--force` affects only managed files; it never bypasses a host-owned conflict.
+Upgrade overwrites an installed file only when its current hash still matches the lock. Modified files stop during collision preflight with exact `MERGE REQUIRED` paths. `--force` affects only managed files; use it to retire a deliberate old managed override after the equivalent behavior ships in core. It never bypasses a host-owned conflict.
 
-Here, “stop” refers to collision preflight, not rollback after an operating-system copy failure; always inspect the Git diff. `--dry-run` automatically previews install when no lock exists and upgrade when it does. `--force` is upgrade-only and only for a managed path already recorded by the kit. After manually merging a host-owned file, preserve it explicitly with repeatable `--accept-host <path>`; never use that option as a substitute for reviewing the merge.
+Here, “stop” refers to collision preflight, not rollback after an operating-system copy failure; always inspect the Git diff. `--dry-run` automatically previews install when no lock exists and upgrade when it does. `--force` is upgrade-only and only for a managed path already recorded by the kit. Preserve verified host values with repeatable `--accept-host <path>`; never use that option as a substitute for reviewing the host file.
+
+Repository values belong only in host-owned `.codex/agent-workflow.json` and `docs/project-workflow-runbook.md`. Managed schemas, gates, hooks, skills, and guide pages must remain byte-for-byte kit-owned. A normal repository should therefore upgrade without a managed-file merge. If a managed collision appears, identify whether it is an obsolete override that core now covers or an unmodeled project requirement; never copy repository-specific values into managed documentation.
 
 Patch upgrades may strengthen managed schemas, validators, skills, and guide pages without changing workflow schema version 2. After such an upgrade, previously approved packets are not grandfathered into materialization: recompute them against the installed validators. If they fail, preserve accepted product decisions and stable IDs in a fresh read-only Planner Repair revision, then obtain a new exact approval. Do not edit an approved packet in place.
 
@@ -30,12 +32,7 @@ Test the heartbeat prompt manually before scheduling it. Scheduled runs use unat
 
 ## Repository protections
 
-Require branch validation on `agent/**` and repeat relevant checks on PR/default branch. This repository's canonical PR check names are:
-
-- `PR Validation / quality`;
-- `PR Validation / visual`.
-
-After both names have completed successfully at least once, configure the `main` ruleset to require both, require the branch to be up to date before merge, require resolved conversations, and block merge while either check is pending or failing. Do not mutate the ruleset without separate human approval. Merge queue may replace manual base synchronization only after its availability and behavior are verified in an organization repository.
+Require branch validation on `agent/**` and repeat relevant checks on PR/default branch. Do not infer required check names from YAML. Read the successful GitHub check runs, record their exact names in the host-owned project runbook, and then configure the default-branch ruleset to require those names, require the branch to be up to date before merge, require resolved conversations, and block merge while any required check is pending or failing. Do not mutate the ruleset without separate human approval. Merge queue may replace manual base synchronization only after its availability and behavior are verified in an organization repository.
 
 ## Dogfood pilot
 

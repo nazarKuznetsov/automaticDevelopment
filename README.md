@@ -39,7 +39,7 @@ For an installed v2 kit:
 scripts/install-kit.sh --target /path/to/target-repo --upgrade
 ```
 
-The installer uses `kit/manifest.json` and `.codex/kit-lock.json`. It never blindly overwrites host-owned `AGENTS.md`, templates, workflows, product contracts, or workflow configuration; manually merged host files require an explicit path-scoped `--accept-host`. See [INSTALL.md](INSTALL.md).
+The installer uses `kit/manifest.json` and `.codex/kit-lock.json`. It never blindly overwrites host-owned `AGENTS.md`, templates, workflows, product contracts, workflow configuration, or the project runbook; reviewed host files require an explicit path-scoped `--accept-host`. Generic bootstrap, Canonical publication, and exact-target PR admission stay managed by the kit, so repository values do not require managed-file overrides. See [INSTALL.md](INSTALL.md).
 
 Repositories that already used workflow v1 should follow the canonical [Existing Products migration](kit/repo/docs/guide/existing-products.md): preserve the current Project/history, reconcile contracts and baseline, then continue from the evidence-backed phase instead of repeating bootstrap.
 
