@@ -1,22 +1,42 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 
 const repoRoot = resolve(import.meta.dirname, "..");
-const installer = join(repoRoot, "scripts", "install-kit.sh");
+const sourceRoot = mkdtempSync(join(tmpdir(), "codex-guide-source-"));
+cpSync(join(repoRoot, "kit"), join(sourceRoot, "kit"), { recursive: true });
+cpSync(join(repoRoot, "scripts"), join(sourceRoot, "scripts"), { recursive: true });
+execFileSync("git", ["init", "--quiet", "--initial-branch=main", sourceRoot]);
+execFileSync("git", ["-C", sourceRoot, "config", "user.name", "Test"]);
+execFileSync("git", ["-C", sourceRoot, "config", "user.email", "test@example.com"]);
+execFileSync("git", ["-C", sourceRoot, "remote", "add", "origin", "https://github.com/example/automation-kit.git"]);
+execFileSync("git", ["-C", sourceRoot, "add", "."]);
+execFileSync("git", ["-C", sourceRoot, "commit", "--quiet", "-m", "source fixture"]);
+const installer = join(sourceRoot, "scripts", "install-kit.sh");
 
-function repository() {
+after(() => rmSync(sourceRoot, { recursive: true, force: true }));
+
+function repository(remote = "https://github.com/acme/example.git") {
   const directory = mkdtempSync(join(tmpdir(), "codex-guide-installer-"));
-  execFileSync("git", ["init", "--quiet", directory]);
+  execFileSync("git", ["init", "--quiet", "--initial-branch=main", directory]);
+  execFileSync("git", ["-C", directory, "remote", "add", "origin", remote]);
   return directory;
 }
 
 function run(args) {
-  return spawnSync(installer, args, { cwd: repoRoot, encoding: "utf8" });
+  return spawnSync(installer, args, { cwd: sourceRoot, encoding: "utf8" });
 }
 
 function sha256(value) {
@@ -42,8 +62,153 @@ test("apply installs new lifecycle packets and admission agent as managed files"
     ".codex/schemas/v2/wave-completion.schema.json",
   ]) assert.equal(existsSync(join(target, path)), true, path);
   const lock = JSON.parse(readFileSync(join(target, ".codex", "kit-lock.json"), "utf8"));
-  assert.equal(lock.kit_version, "2.0.2");
+  assert.equal(lock.schema_version, 3);
+  assert.equal(lock.kit.version, "2.1.0");
+  assert.equal(lock.kit.source_repository, "example/automation-kit");
+  assert.match(lock.kit.source_commit, /^[0-9a-f]{40}$/);
+  assert.match(lock.kit.manifest_sha256, /^[0-9a-f]{64}$/);
+  assert.match(lock.kit.tree_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(lock.target.repository, "acme/example");
+  assert.equal(lock.target.origin_url, "https://github.com/acme/example.git");
+  assert.equal(lock.target.default_branch, "main");
   assert.equal(lock.files[".codex/agents/admission-reviewer.toml"].ownership, "managed");
+});
+
+test("installer prints distinct source and installation target identities", () => {
+  const target = repository();
+  const result = run(["--target", target, "--dry-run"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Kit source: example\/automation-kit@[0-9a-f]{40}/);
+  assert.match(result.stdout, /Installation target: acme\/example \(main\)/);
+});
+
+test("upgrade rejects target remote and host configuration identity drift", () => {
+  const target = repository();
+  assert.equal(run(["--target", target, "--apply"]).status, 0);
+  const configPath = join(target, ".codex", "agent-workflow.json");
+  const config = JSON.parse(readFileSync(configPath, "utf8"));
+  config.github.repository = "acme/other";
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  const result = run(["--target", target, "--upgrade", "--accept-host", ".codex/agent-workflow.json"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Target identity mismatch/);
+});
+
+test("upgrade rejects a different kit source than the one bound in lock v3", () => {
+  const target = repository();
+  assert.equal(run(["--target", target, "--apply"]).status, 0);
+  const lockPath = join(target, ".codex", "kit-lock.json");
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  lock.kit.source_repository = "other/automation-kit";
+  writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+
+  const result = run(["--target", target, "--upgrade"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Kit source identity mismatch/);
+});
+
+test("installer accepts a managed worktree git pointer and records the shared target remote", () => {
+  const root = repository("git@github.com:acme/worktree-target.git");
+  execFileSync("git", ["-C", root, "config", "user.name", "Test"]);
+  execFileSync("git", ["-C", root, "config", "user.email", "test@example.com"]);
+  writeFileSync(join(root, "README.md"), "fixture\n");
+  execFileSync("git", ["-C", root, "add", "README.md"]);
+  execFileSync("git", ["-C", root, "commit", "--quiet", "-m", "fixture"]);
+  const worktree = `${root}-worktree`;
+  execFileSync("git", ["-C", root, "worktree", "add", "--quiet", "-b", "agent/1-test", worktree]);
+  const result = run(["--target", worktree, "--apply"]);
+  assert.equal(result.status, 0, result.stderr);
+  const lock = JSON.parse(readFileSync(join(worktree, ".codex", "kit-lock.json"), "utf8"));
+  assert.equal(lock.target.repository, "acme/worktree-target");
+  assert.equal(lock.target.default_branch, "main");
+});
+
+test("installer normalizes ssh GitHub origins and does not mistake a feature branch for default", () => {
+  const target = repository("ssh://git@github.com/acme/ssh-target.git");
+  execFileSync("git", ["-C", target, "config", "user.name", "Test"]);
+  execFileSync("git", ["-C", target, "config", "user.email", "test@example.com"]);
+  writeFileSync(join(target, "README.md"), "fixture\n");
+  execFileSync("git", ["-C", target, "add", "README.md"]);
+  execFileSync("git", ["-C", target, "commit", "--quiet", "-m", "fixture"]);
+  execFileSync("git", ["-C", target, "switch", "--quiet", "-c", "feature/local"]);
+
+  const result = run(["--target", target, "--apply"]);
+  assert.equal(result.status, 0, result.stderr);
+  const lock = JSON.parse(readFileSync(join(target, ".codex", "kit-lock.json"), "utf8"));
+  assert.equal(lock.target.repository, "acme/ssh-target");
+  assert.equal(lock.target.default_branch, "main");
+});
+
+test("installer refuses a dirty manifest-listed source file", () => {
+  const target = repository();
+  const sourcePath = join(sourceRoot, "kit", "repo", ".codex", "scripts", "workflow-contract.mjs");
+  const original = readFileSync(sourcePath, "utf8");
+  writeFileSync(sourcePath, `${original}\n// dirty fixture\n`);
+  try {
+    const result = run(["--target", target, "--apply"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Kit source has uncommitted manifest changes/);
+  } finally {
+    writeFileSync(sourcePath, original);
+  }
+});
+
+test("installer refuses nested Git/submodule and local Codex task metadata paths", () => {
+  const target = repository();
+  const manifestPath = join(sourceRoot, "kit", "manifest.json");
+  const original = readFileSync(manifestPath, "utf8");
+  const manifest = JSON.parse(original);
+  manifest.files.push(
+    { path: "nested/.gitmodules", ownership: "managed" },
+    { path: ".codex/session.json", ownership: "managed" },
+  );
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  try {
+    const result = run(["--target", target, "--dry-run"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /unsafe path/);
+  } finally {
+    writeFileSync(manifestPath, original);
+  }
+});
+
+test("upgrade migrates a v2 lock to provenance-bound schema v3", () => {
+  const target = repository();
+  assert.equal(run(["--target", target, "--apply"]).status, 0);
+  const lockPath = join(target, ".codex", "kit-lock.json");
+  const current = JSON.parse(readFileSync(lockPath, "utf8"));
+  writeFileSync(lockPath, `${JSON.stringify({
+    schema_version: 2,
+    kit_version: "2.0.2",
+    installed_at: current.installed_at,
+    files: current.files,
+  }, null, 2)}\n`);
+  const upgraded = run(["--target", target, "--upgrade"]);
+  assert.equal(upgraded.status, 0, upgraded.stderr);
+  const migrated = JSON.parse(readFileSync(lockPath, "utf8"));
+  assert.equal(migrated.schema_version, 3);
+  assert.equal(migrated.kit.version, "2.1.0");
+  assert.equal(migrated.target.repository, "acme/example");
+});
+
+test("upgrade refuses an unsupported or malformed lock schema", () => {
+  const target = repository();
+  assert.equal(run(["--target", target, "--apply"]).status, 0);
+  const lockPath = join(target, ".codex", "kit-lock.json");
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  lock.schema_version = 99;
+  writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+
+  const result = run(["--target", target, "--upgrade"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Unsupported kit lock schema/);
+});
+
+test("installer refuses to install the kit into its own source repository", () => {
+  const target = repository("https://github.com/example/automation-kit.git");
+  const result = run(["--target", target, "--apply"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /source and installation target must be different/);
 });
 
 test("repository values stay host-owned while admission core installs and upgrades without managed overrides", () => {

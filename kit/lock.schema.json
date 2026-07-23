@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Codex Automation Kit Lock v3",
+  "type": "object",
+  "required": ["schema_version", "kit", "target", "installed_at", "files"],
+  "properties": {
+    "schema_version": { "const": 3 },
+    "kit": {
+      "type": "object",
+      "required": ["version", "source_repository", "source_commit", "manifest_sha256", "tree_sha256"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "source_repository": { "$ref": "#/$defs/repository" },
+        "source_commit": { "$ref": "#/$defs/commit" },
+        "manifest_sha256": { "$ref": "#/$defs/digest" },
+        "tree_sha256": { "$ref": "#/$defs/digest" }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": ["repository", "origin_url", "default_branch"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/repository" },
+        "origin_url": { "type": "string", "minLength": 1 },
+        "default_branch": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "installed_at": { "type": "string", "format": "date-time" },
+    "files": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(?!/)(?![A-Za-z]:/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))(?!.*(?:^|/)\\.gitmodules$).+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["hash", "source_hash", "ownership", "content_origin"],
+        "properties": {
+          "hash": { "$ref": "#/$defs/digest" },
+          "source_hash": { "$ref": "#/$defs/digest" },
+          "ownership": { "enum": ["managed", "host", "generated"] },
+          "content_origin": { "enum": ["kit", "host"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}

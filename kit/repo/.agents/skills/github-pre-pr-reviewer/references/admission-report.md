@@ -10,6 +10,7 @@ Subject: Issue #<number> | Bootstrap <authority> | Canonical publication <revisi
 Repository/head/base: <owner/repo> / <head-branch> / <base-branch>
 Head SHA: <full-sha>
 Base SHA at launch/validated/current: <full-sha> / <full-sha> / <full-sha>
+Automation profile / risk: solo_fast | team_safe | regulated / Low | Medium | High
 Admission source: <distinct task or human ID>
 Status: PASS | FAIL | BLOCKED
 
@@ -42,3 +43,5 @@ For bootstrap and Canonical publication, the authoritative default-branch `.code
 `base_sha_at_launch` is immutable provenance; `validated_base_sha` records the default-branch revision against which current HEAD and all fresh evidence were validated. Bare PASS strings, copied conclusions, local absolute filesystem paths, missing identities, or stale SHA/base/config evidence are invalid.
 
 The admission agent returns evidence but does not create the local marker. The single write owner invokes the deterministic gate with unchanged QA tree evidence. The gate preserves that evidence, adds its own before/after state, reruns commands from authoritative base configuration, reads the authoritative default branch/config from `origin`, then writes an untracked one-shot exact-target marker under the actual Git directory. The hook re-reads the authoritative base and accepts only one explicit Draft PR call for the admitted repository/head/base. If PR creation is ambiguous, query GitHub before rerunning admission; a consumed authorization cannot be reissued for the same SHA.
+
+Review topology is profile- and risk-bound. Non-regulated Low-risk work uses one independent `reviewer_qa` result plus deterministic admission; it does not create a distinct admission-reviewer task. Medium/High and regulated work retain the independent roles required by their configured topology.

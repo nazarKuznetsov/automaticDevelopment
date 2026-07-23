@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "kit_version": "2.0.2",
+  "kit_version": "2.1.0",
   "configured": false,
   "github": {
     "repository": "",
@@ -30,6 +30,8 @@
     "branch_ci_workflow": "agent-branch-validation.yml"
   },
   "execution": {
+    "automation_profile": "team_safe",
+    "managed_change_policy": "route_to_source",
     "orchestrator_scope": "wave",
     "task_strategy": "fresh_top_level_per_leaf",
     "worker_environment": "managed_worktree",
@@ -55,10 +57,10 @@
     "copy_ignored_files": false
   },
   "merge": {
-    "mode": "human_approval_then_orchestrator",
+    "mode": "profile_risk_then_orchestrator",
     "approval_binding": "pr_and_head_sha",
     "require_fresh_base": true,
-    "automatic_low_risk_merge": false
+    "automatic_low_risk_merge": true
   },
   "bootstrap": null,
   "canonical_publication": null,

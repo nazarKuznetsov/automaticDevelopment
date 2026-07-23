@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
   <title id="title">Codex Automation Guide task topology</title>
-  <desc id="desc">Brainstorm and Planner tasks lead to human wave approval, a fresh Orchestrator creates two disjoint top-level Worker tasks with review agents and pull requests, then exact-SHA human approval allows Orchestrator merge and post-merge reconciliation.</desc>
+  <desc id="desc">Brainstorm and Planner tasks lead to one Wave Authority Lease, a fresh Orchestrator creates up to two disjoint top-level Worker tasks with profile-appropriate review, then risk-tiered merge policy and post-merge reconciliation complete the wave.</desc>
   <defs>
     <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#15213a"/>

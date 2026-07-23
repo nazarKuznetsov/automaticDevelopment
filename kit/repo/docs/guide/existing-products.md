@@ -90,7 +90,7 @@ Use $github-project-planner in continuation mode in a fresh read-only task for <
 
 ## 7. Prove the migration
 
-After the migration PR is human-merged, run a separately approved Low-risk dogfood Issue. Verify canonical top-level Worker task/managed-worktree readback, zero PRs on failing branch CI, distinct reviewer/QA/admission identities, one exact-SHA PR, human authorization bound to repository/PR/head/base/admission digest, Orchestrator merge readback, and post-merge CI bound to the merge commit before Done/archive. Do not use deploy, migration, auth, or customer data for the pilot.
+After the migration PR is merged, authorize one Low-risk dogfood wave. Verify source/target and ownership preflight, canonical top-level Worker task/managed-worktree readback in the same orchestration session, zero PRs on failing branch CI, profile-appropriate independent review, deterministic admission, merge authorization required by the selected profile/risk, Orchestrator merge readback, and post-merge CI bound to the merge commit before Done/archive. Retry from the same operation journal and prove that no GitHub object is duplicated. Do not use deploy, migration, auth, or customer data for the pilot.
 
 Rollback is Git-first: revert the migration PR if repository behavior is unsafe. Project field additions should remain non-destructive during evaluation; do not delete old fields/data until v2 has completed an accepted wave and a human approves cleanup.
 
@@ -122,3 +122,15 @@ For a repository with older local copies of the managed hook, schema, gate, cont
 6. recompute any not-yet-materialized Planner Packet against the installed validators and obtain exact approval before materialization.
 
 Do not copy repository-specific check names, branches, revisions, IDs, hashes, or URLs back into managed documentation.
+
+## Upgrade 2.0.x installations to 2.1
+
+1. Run the 2.1 installer from a clean exact source commit and verify separate source/target output.
+2. Preserve reviewed host-owned files with path-scoped `--accept-host`; retire only recorded managed overrides with reviewed `--force`.
+3. Verify lock v3 source repository/commit/tree and target repository/origin/default branch.
+4. Set an explicit automation profile and managed-change policy in host configuration. Adopt merge mode `profile_risk_then_orchestrator` and enable the profile-controlled Low-risk capability; `team_safe` still requires human merge, while only `solo_fast` Low may use it automatically.
+5. Replace full-roadmap materialization with the current execution horizon and one Wave Authority Lease.
+6. Preserve existing Issue state. Closed and advanced Project items must produce `KEEP`, never reopen/downgrade.
+7. Run one Low-risk pilot proving ownership preflight, resumable journal, profile-appropriate review, and post-merge reconciliation.
+
+The upgrade changes workflow mechanics, not approved product meaning. Do not repeat Discovery or roadmap approval unless the product contract or planned scope actually changed.

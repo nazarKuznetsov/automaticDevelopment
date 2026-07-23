@@ -1,4 +1,4 @@
-# Codex Lifecycle Workflow v2
+# Codex Lifecycle Workflow v2.1
 
 GitHub Issues, native sub-issues/dependencies, Project v2, PRs, Actions, and comments are the durable ledger. Codex tasks and worktrees are execution surfaces, not state storage.
 
@@ -8,7 +8,7 @@ Read `docs/product/canonical.md`, `.codex/agent-workflow.json`, and `docs/guide/
 
 Phases are Discovery, Planning, Design, Foundation, MVP, Stabilization, Production, and Growth. Non-UI Foundation may overlap Design, but no MVP UI leaf becomes Ready before the Design Readiness gate passes.
 
-Humans approve the Canonical Brief, global roadmap, every wave/phase entry and exit, high-risk decisions, and the exact PR/head SHA for every merge. After that exact authorization, Orchestrator may execute the merge. Low/Medium leaf work inside an approved wave may run autonomously.
+Humans approve the Canonical Brief, global roadmap, phase entry/exit, high-risk decisions, and one revision-bound Wave Authority Lease. Technical GitHub writes, Worker launches, retries, and task replacement run under that unchanged lease. `solo_fast` Low-risk work may merge automatically after complete deterministic admission; Medium/High and stricter profiles require exact PR/head authorization.
 
 ## Roles
 
@@ -26,7 +26,7 @@ Use project agents `planner`, `reviewer`, `qa`, `admission-reviewer`, `security-
 - Never invent repository state, tool availability, model availability, commands, test results, approvals, URLs, IDs, SHAs, task/worktree creation, or GitHub mutations.
 - A write is complete only after the tool returns a canonical identifier and a read-after-write check confirms the intended state. Until then, report it as planned or failed.
 - A capability is available only when its tool is present and a non-mutating probe succeeds. Owner type, documentation, or memory alone is not proof that Issue Types, merge queue, task creation, worktrees, scheduling, or another optional feature is enabled.
-- `Independent` means a distinct agent task or a named human who inspects the exact SHA. Worker, reviewer, QA, and admission identities must differ. The Worker cannot role-play another role.
+- `Independent` means a distinct agent task or a named human who inspects the exact SHA. Required identities come from profile/risk topology and must differ from the Worker and each other. The Worker cannot role-play another role.
 - Evidence must be traceable to an exact command/result, GitHub URL/ID, artifact, or human decision. Agent-authored prose is not proof of an external event.
 - When verification is impossible, fail closed with `unknown` or `blocked` and use the documented fallback; never fill a gap with a plausible value.
 
@@ -41,6 +41,8 @@ Project fields and values come from `.codex/agent-workflow.json`. Use Work Type 
 ## Execution
 
 - Start one fresh top-level Orchestrator task per approved wave.
+- Verify repository identity, Wave Authority Lease, and touch ownership before any Worker launch.
+- Materialize only the execution horizon: at most five Ready leaves, required parents, and wave-blocking dependencies.
 - Keep no more than two write Workers active, and only when their `conflict_keys` are disjoint.
 - Use one fresh top-level Codex task and managed worktree per leaf Issue. Never fork Orchestrator history into a Worker.
 - Use one `agent/<issue>-<slug>` branch and one PR per Issue.
@@ -58,11 +60,11 @@ Workers never create Issues. They return a Finding Packet. Orchestrator deduplic
 
 ## Pre-PR admission
 
-No PR creation tool may run until all acceptance, TDD/exemption, targeted/full/integration validation, separate clean QA/gate tracked-tree evidence, authoritative fresh remote base, independent reviewer/QA/admission, conditional design/security/high-risk review, branch CI for current SHA, dependency, baseline, documentation, rollout, and human-gate checks pass.
+No PR creation tool may run until all acceptance, TDD/exemption, targeted/full/integration validation, clean reviewer/QA and gate tracked-tree evidence, authoritative fresh remote base, profile/risk-required independent review, conditional design/security/high-risk review, branch CI for current SHA, dependency, baseline, documentation, rollout, and human-gate checks pass.
 
 Run `.codex/scripts/pre-pr-gate.mjs --evidence <json>`. The generated marker is commit-bound and must remain untracked. Codex PreToolUse hooks are defense-in-depth, not the sole enforcement boundary.
 
-After a new commit or base advance, prior review, QA, admission, and merge authorization are invalid. After post-PR failure or requested changes, convert the PR to Draft, return the Issue to In Progress, and reuse the same task/branch/PR. Automatic low-risk merge is disabled: Orchestrator merges only after exact human PR/SHA authorization and fresh readback.
+After a new commit or base advance, prior review, QA, admission, and merge authorization are invalid. After post-PR failure or requested changes, convert the PR to Draft, return the Issue to In Progress, and reuse the same task/branch/PR. `solo_fast` Low-risk work may auto-merge only after full PASS and fresh readback; Medium/High and stricter profiles require exact human PR/SHA authorization.
 
 After two failed attempts on one signal, change approach or add a specialist. On the third repetition, set Blocked and request human action.
 

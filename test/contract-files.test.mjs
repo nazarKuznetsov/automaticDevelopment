@@ -12,7 +12,7 @@ function json(path) {
 
 test("workflow config pins wave-scoped fresh-task and exact-SHA merge defaults", () => {
   const workflow = json(".codex/agent-workflow.json");
-  assert.equal(workflow.kit_version, "2.0.2");
+  assert.equal(workflow.kit_version, "2.1.0");
   assert.deepEqual({
     orchestrator_scope: workflow.execution.orchestrator_scope,
     task_strategy: workflow.execution.task_strategy,
@@ -24,6 +24,8 @@ test("workflow config pins wave-scoped fresh-task and exact-SHA merge defaults",
     max_active_subagents_per_worker: workflow.execution.max_active_subagents_per_worker,
     claim_stale_after_missed_heartbeats: workflow.execution.claim_stale_after_missed_heartbeats,
     archive_worker_after: workflow.execution.archive_worker_after,
+    automation_profile: workflow.execution.automation_profile,
+    managed_change_policy: workflow.execution.managed_change_policy,
   }, {
     orchestrator_scope: "wave",
     task_strategy: "fresh_top_level_per_leaf",
@@ -35,12 +37,14 @@ test("workflow config pins wave-scoped fresh-task and exact-SHA merge defaults",
     max_active_subagents_per_worker: 2,
     claim_stale_after_missed_heartbeats: 3,
     archive_worker_after: "post_merge_done",
+    automation_profile: "team_safe",
+    managed_change_policy: "route_to_source",
   });
   assert.deepEqual(workflow.merge, {
-    mode: "human_approval_then_orchestrator",
+    mode: "profile_risk_then_orchestrator",
     approval_binding: "pr_and_head_sha",
     require_fresh_base: true,
-    automatic_low_risk_merge: false,
+    automatic_low_risk_merge: true,
   });
   assert.deepEqual(workflow.worktree, { setup_commands: [], required_paths: [], copy_ignored_files: false });
   assert.deepEqual(workflow.validation.integration, []);
@@ -79,15 +83,30 @@ test("packet schemas cover task lifecycle without durable local paths", () => {
   const files = readdirSync(schemaDir).sort();
   for (const required of [
     "merge-authorization.schema.json",
+    "kit-maintenance.schema.json",
     "orchestrator-start.schema.json",
     "orchestrator-state-handoff.schema.json",
     "plan-materialization-report.schema.json",
     "surface-update.schema.json",
+    "wave-authority-lease.schema.json",
     "wave-completion.schema.json",
   ]) assert.ok(files.includes(required), `missing ${required}`);
 
   const worker = json(".codex/schemas/v2/worker.schema.json");
-  for (const field of ["plan_item_id", "base_sha_at_launch", "owner_layer", "conflict_keys", "touch_points", "integration_order"]) {
+  for (const field of [
+    "plan_item_id",
+    "base_sha_at_launch",
+    "owner_layer",
+    "conflict_keys",
+    "touch_points",
+    "integration_order",
+    "repository_identity",
+    "touch_ownership",
+    "allowed_paths",
+    "kit_source_binding",
+    "managed_change_policy",
+    "authority_lease",
+  ]) {
     assert.ok(worker.required.includes(field), `Worker Packet missing ${field}`);
   }
   const finding = json(".codex/schemas/v2/finding.schema.json");
@@ -112,16 +131,27 @@ test("packet schemas cover task lifecycle without durable local paths", () => {
     "phase_plan_revision",
     "phase_plan_digest",
     "approved_plan_items",
+    "authority_lease",
   ]) assert.ok(start.required.includes(field), `Orchestrator Start missing ${field}`);
   assert.equal(start.properties.approved_issues, undefined);
   assert.equal(start.$defs.plan_item.properties.number, undefined);
   assert.ok(start.properties.authorization.required.includes("approved_by"));
+  assert.equal(start.properties.authority_lease.$ref, "wave-authority-lease.schema.json");
   assert.match(start.$defs.conflict_keys.items.pattern, /a-z0-9/);
   assert.ok(start.allOf.some((rule) => rule.if?.properties?.mode?.const === "materialization_only"));
   assert.ok(start.allOf.some((rule) => rule.if?.properties?.mode?.const === "wave_execution"));
   const merge = json(".codex/schemas/v2/merge-authorization.schema.json");
   for (const field of ["repository", "pr", "head_sha", "base_sha", "admission_report_url", "admission_report_digest"]) {
     assert.ok(merge.required.includes(field), `Merge Authorization missing ${field}`);
+  }
+  const maintenance = json(".codex/schemas/v2/kit-maintenance.schema.json");
+  for (const field of ["fingerprint", "repository", "target_repository", "source_issue", "managed_paths", "target_adoption"]) {
+    assert.ok(maintenance.required.includes(field), `Kit Maintenance Packet missing ${field}`);
+  }
+  const lease = json(".codex/schemas/v2/wave-authority-lease.schema.json");
+  const leaseActions = lease.properties.allowed_actions.items.enum;
+  for (const action of ["create_issue", "update_issue", "create_comment", "create_relation", "update_project", "create_worker", "manage_claim", "heartbeat", "retry_operation"]) {
+    assert.ok(leaseActions.includes(action), `Wave Authority Lease missing routine action ${action}`);
   }
   const allSchemas = files.map((file) => readFileSync(join(schemaDir, file), "utf8")).join("\n");
   assert.doesNotMatch(allSchemas, /worktree_path|filesystem_path/);
@@ -158,6 +188,12 @@ test("planning schemas are complete enough for fail-closed materialization", () 
     "report_parent_plan_item_id",
     "report_parent_issue_url",
     "report_url",
+    "run_id",
+    "repository",
+    "operation_journal",
+    "completed_operation_ids",
+    "remaining_operations",
+    "resume_state",
   ]) assert.ok(report.required.includes(field), `Materialization Report missing ${field}`);
   const passRule = report.allOf.find((rule) => rule.if?.properties?.status?.const === "PASS");
   assert.equal(passRule.then.properties.agent_ready_readback?.minItems, undefined);

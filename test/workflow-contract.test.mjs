@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildMaterializationJournal,
   capabilityProfile,
   classifyFinding,
   evaluateClaimStaleness,
@@ -46,6 +47,23 @@ const readyFields = {
 
 const lifecyclePhases = ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"];
 
+function waveAuthorityLease(planRevision, planItemIds, actions, overrides = {}) {
+  return {
+    authority_id: `authority-${planRevision}`,
+    profile: "team_safe",
+    repositories: ["acme/app"],
+    plan_revision: planRevision,
+    plan_item_ids: planItemIds,
+    issue_ids: [],
+    allowed_actions: actions,
+    max_worker_launches: actions.includes("create_worker") ? 5 : 0,
+    max_github_writes: 100,
+    expires_at: "2099-01-01T00:00:00.000Z",
+    approved_by: "human",
+    ...overrides,
+  };
+}
+
 function roadmapPhase(phase, overrides = {}) {
   const slug = phase.toLowerCase();
   return {
@@ -85,11 +103,12 @@ function passingAdmission(overrides = {}) {
     current_sha: sha,
     base_sha_at_launch: "def5678def5678def5678def5678def5678def56",
     validated_base_sha: "def5678def5678def5678def5678def5678def56",
+    automation_profile: "team_safe",
     current_base_sha: "def5678def5678def5678def5678def5678def56",
     current_branch: "agent/1-export-report",
     raw_evidence_keys: [
       "schema_version", "packet_type", "commit_sha", "base_sha_at_launch",
-      "validated_base_sha", "qa_tracked_worktree", "gate_tracked_worktree",
+      "validated_base_sha", "automation_profile", "qa_tracked_worktree", "gate_tracked_worktree",
       "worker", "issue", "acceptance", "tdd", "local_validation", "reviews",
       "branch_ci", "baseline", "documentation", "rollout", "human_gates",
     ],
@@ -424,7 +443,7 @@ test("approved plan materialization is top-down and idempotent", () => {
 
   assert.deepEqual(validatePlanContracts(contracts), { valid: true, blockers: [] });
   const first = materializeApprovedPlan(contracts, { mapping: {}, resolved_plan_items: ["foundation.api"], relationships: [] });
-  assert.equal(first.issue_creates.length, 9);
+  assert.equal(first.issue_creates.length, 3);
   assert.ok(first.issue_creates.findIndex((item) => item.plan_item_id === "mvp.epic")
     < first.issue_creates.findIndex((item) => item.plan_item_id === "mvp.epic.export"));
   assert.equal(first.requires_read_after_write, true);
@@ -499,6 +518,7 @@ test("approved plan materialization is top-down and idempotent", () => {
     schema_version: 2,
     packet_type: "orchestrator_start",
     mode: "wave_execution",
+    repository: "acme/app",
     wave_id: "mvp-wave-1",
     global_roadmap_revision: roadmap.revision,
     global_roadmap_digest: roadmap.packet_digest,
@@ -506,6 +526,11 @@ test("approved plan materialization is top-down and idempotent", () => {
     phase_plan_digest: phasePlan.packet_digest,
     base_sha: "a".repeat(40),
     approved_plan_items: [{ plan_item_id: "mvp.epic.export", conflict_keys: ["report-export"] }],
+    authority_lease: waveAuthorityLease(
+      phasePlan.revision,
+      ["mvp.epic.export"],
+      ["materialize", "create_worker"],
+    ),
     authorization: {
       status: "APPROVED",
       create_top_level_worker_tasks: true,
@@ -514,13 +539,26 @@ test("approved plan materialization is top-down and idempotent", () => {
       max_concurrent_write_workers: 2,
       monitor_and_steer: true,
       archive_after_done: true,
-      create_high_risk_review_tasks: true,
+      create_high_risk_review_tasks: false,
       merge_requires_exact_sha_authorization: true,
       approved_by: "human",
     },
     valid_until: "2099-01-01T00:00:00.000Z",
   };
   assert.deepEqual(evaluateOrchestratorStart(contracts, validStart, { now: "2098-01-01T00:00:00.000Z" }), {
+    valid: true,
+    blockers: [],
+  });
+  const soloLowContracts = structuredClone(contracts);
+  soloLowContracts.phase_plan.hierarchy.find((item) => item.plan_item_id === "mvp.epic.export").risk = "Low";
+  soloLowContracts.phase_plan.ready_wave[0].risk = "Low";
+  soloLowContracts.phase_plan.packet_digest = packetDigest(soloLowContracts.phase_plan);
+  soloLowContracts.phase_plan.approval.packet_digest = soloLowContracts.phase_plan.packet_digest;
+  const soloLowStart = structuredClone(validStart);
+  soloLowStart.phase_plan_digest = soloLowContracts.phase_plan.packet_digest;
+  soloLowStart.authority_lease.profile = "solo_fast";
+  soloLowStart.authorization.merge_requires_exact_sha_authorization = false;
+  assert.deepEqual(evaluateOrchestratorStart(soloLowContracts, soloLowStart, { now: "2098-01-01T00:00:00.000Z" }), {
     valid: true,
     blockers: [],
   });
@@ -619,15 +657,19 @@ test("roadmap-only materialization PASS allows an empty Ready wave", () => {
     schema_version: 2,
     packet_type: "orchestrator_start",
     mode: "materialization_only",
+    repository: "acme/app",
     wave_id: "planning-materialization",
     global_roadmap_revision: roadmap.revision,
     global_roadmap_digest: roadmap.packet_digest,
     phase_plan_revision: phasePlan.revision,
     phase_plan_digest: phasePlan.packet_digest,
     base_sha: "b".repeat(40),
-    approved_plan_items: lifecyclePhases.map((phase) => ({
-      plan_item_id: `${phase.toLowerCase()}.epic`,
-    })),
+    approved_plan_items: [{ plan_item_id: "planning.epic" }],
+    authority_lease: waveAuthorityLease(
+      phasePlan.revision,
+      ["planning.epic"],
+      ["materialize"],
+    ),
     authorization: {
       status: "APPROVED",
       create_top_level_worker_tasks: false,
@@ -649,10 +691,10 @@ test("roadmap-only materialization PASS allows an empty Ready wave", () => {
   const accidentalWorkerAuthority = structuredClone(materializationStart);
   accidentalWorkerAuthority.authorization.create_top_level_worker_tasks = true;
   assert.match(evaluateOrchestratorStart(contracts, accidentalWorkerAuthority).blockers.join(" "), /Worker authority/);
-  const expectedItems = lifecyclePhases.map((phase) => {
-    const item = roadmap.phases.find((entry) => entry.phase === phase).epics[0];
-    return { ...item, phase };
-  });
+  const expectedItems = [{
+    ...roadmap.phases.find((entry) => entry.phase === "Planning").epics[0],
+    phase: "Planning",
+  }];
   const mappings = expectedItems.map((item, index) => ({
     plan_item_id: item.plan_item_id,
     issue_number: index + 10,
@@ -666,8 +708,26 @@ test("roadmap-only materialization PASS allows an empty Ready wave", () => {
   }));
   for (const record of projectReadback) delete record.title;
   const planningMapping = mappings.find((item) => item.plan_item_id === "planning.epic");
+  const plannedJournal = buildMaterializationJournal({
+    run_id: "planning-run-r4",
+    repository: "acme/app",
+    desired_items: [{
+      plan_item_id: "planning.epic",
+      target: { issue_state: "OPEN", project_status: "Backlog" },
+    }],
+  });
+  const completedOperation = {
+    ...plannedJournal.operations[0],
+    after: {
+      issue_number: planningMapping.issue_number,
+      issue_state: "OPEN",
+      project_status: "Backlog",
+    },
+  };
 
   const incomplete = evaluateMaterializationReport(contracts, {
+    run_id: "planning-run-r4",
+    repository: "acme/app",
     materialization_mode: "materialization_only",
     global_roadmap_revision: "roadmap-r4",
     global_roadmap_digest: roadmap.packet_digest,
@@ -676,11 +736,17 @@ test("roadmap-only materialization PASS allows an empty Ready wave", () => {
     report_parent_plan_item_id: "planning.epic",
     report_parent_issue_url: planningMapping.issue_url,
     report_url: `${planningMapping.issue_url}#issuecomment-1`,
+    operation_journal: [],
+    completed_operation_ids: [],
+    remaining_operations: [],
+    resume_state: "COMPLETE",
     status: "PASS",
     mapping: [], hierarchy_readback: [], dependency_readback: [], project_readback: [], agent_ready_readback: [], blockers: [],
   });
   assert.equal(incomplete.valid, false);
-  const complete = evaluateMaterializationReport(contracts, {
+  const completeReport = {
+    run_id: "planning-run-r4",
+    repository: "acme/app",
     materialization_mode: "materialization_only",
     global_roadmap_revision: "roadmap-r4",
     global_roadmap_digest: roadmap.packet_digest,
@@ -689,6 +755,10 @@ test("roadmap-only materialization PASS allows an empty Ready wave", () => {
     report_parent_plan_item_id: "planning.epic",
     report_parent_issue_url: planningMapping.issue_url,
     report_url: `${planningMapping.issue_url}#issuecomment-1`,
+    operation_journal: [completedOperation],
+    completed_operation_ids: [completedOperation.operation_id],
+    remaining_operations: [],
+    resume_state: "COMPLETE",
     status: "PASS",
     mapping: mappings,
     hierarchy_readback: [],
@@ -696,8 +766,18 @@ test("roadmap-only materialization PASS allows an empty Ready wave", () => {
     project_readback: projectReadback,
     agent_ready_readback: [],
     blockers: [],
-  });
+  };
+  const complete = evaluateMaterializationReport(contracts, completeReport);
   assert.deepEqual(complete, { valid: true, blockers: [] });
+
+  const forgedOperation = structuredClone(completeReport);
+  forgedOperation.operation_journal[0].operation_id = "f".repeat(64);
+  forgedOperation.completed_operation_ids = ["f".repeat(64)];
+  assert.match(evaluateMaterializationReport(contracts, forgedOperation).blockers.join(" "), /non-stable operation ID/);
+
+  const foreignResumeId = structuredClone(completeReport);
+  foreignResumeId.completed_operation_ids.push("e".repeat(64));
+  assert.match(evaluateMaterializationReport(contracts, foreignResumeId).blockers.join(" "), /outside the journal/);
 });
 
 test("readiness rejects parents, L/XL work, blockers, and empty issue-form values", () => {
@@ -786,6 +866,16 @@ test("worker review topology enforces depth, concurrency, non-authoring QA, and 
   });
   assert.equal(valid.valid, true);
 
+  const lowRisk = evaluateReviewTopology({
+    worker_id: "worker-low",
+    profile: "team_safe",
+    risk: "Low",
+    agents: [
+      { id: "reviewer-qa-1", role: "reviewer-qa", depth: 1, active: true, tracked_writes: false },
+    ],
+  });
+  assert.equal(lowRisk.valid, true);
+
   const invalid = evaluateReviewTopology({
     worker_id: "worker-1",
     agents: [
@@ -850,6 +940,27 @@ test("admission accepts exactly one configured Issue, bootstrap, or Canonical pu
   const unknown = passingCanonicalPublicationAdmission();
   unknown.raw_evidence_keys.push("invented_authority");
   assert.equal(evaluateAdmission(unknown).status, "FAIL");
+});
+
+test("Low-risk solo_fast and team_safe admission accept one combined reviewer/QA", () => {
+  for (const automation_profile of ["solo_fast", "team_safe"]) {
+    const packet = passingAdmission({
+      automation_profile,
+      issue: {
+        number: 1,
+        is_leaf: true,
+        risk: "Low",
+        high_risk_flags: [],
+        unresolved_dependencies: [],
+      },
+    });
+    packet.reviews = {
+      reviewer_qa: packet.reviews.reviewer,
+      design: packet.reviews.design,
+      security: packet.reviews.security,
+    };
+    assert.equal(evaluateAdmission(packet).status, "PASS", automation_profile);
+  }
 });
 
 test("admission rejects branch CI failure and never authorizes a PR", () => {
@@ -978,12 +1089,35 @@ test("orchestrator pauses idle heartbeat and requires handoff after five launche
   assert.deepEqual(orchestratorControl({ queue_length: 0, awaiting_human: false, launches: 2 }), {
     heartbeat: "PAUSE",
     handoff: "NOT_REQUIRED",
+    next_action: "DRAIN_WAVE",
   });
   assert.deepEqual(orchestratorControl({ queue_length: 1, awaiting_human: false, launches: 5 }), {
     heartbeat: "ACTIVE",
     handoff: "REQUIRED",
+    next_action: "HANDOFF",
   });
   assert.equal(orchestratorControl({ queue_length: 1, awaiting_human: true, launches: 1 }).heartbeat, "PAUSE");
+  assert.equal(orchestratorControl({
+    queue_length: 1,
+    awaiting_human: false,
+    launches: 0,
+    materialization_status: "COMPLETE",
+    lease_valid: true,
+  }).next_action, "LAUNCH_FIRST_WORKER");
+  assert.equal(orchestratorControl({
+    queue_length: 1,
+    awaiting_human: false,
+    launches: 0,
+    materialization_status: "RESUMABLE",
+    lease_valid: true,
+  }).next_action, "RESUME_MATERIALIZATION");
+  assert.notEqual(orchestratorControl({
+    queue_length: 1,
+    awaiting_human: false,
+    launches: 0,
+    materialization_status: "RESUMABLE",
+    lease_valid: true,
+  }).next_action, "RETURN_TO_PLANNING");
 });
 
 test("merge requires exact human-approved PR and SHA plus fresh admission and base", () => {
@@ -1008,6 +1142,36 @@ test("merge requires exact human-approved PR and SHA plus fresh admission and ba
   const pass = evaluateMerge(input);
   assert.equal(pass.authorize_merge, true);
   assert.equal(pass.expected_head_sha, input.pr.head_sha);
+
+  const automaticLowRisk = evaluateMerge({
+    ...input,
+    profile: "solo_fast",
+    risk: "Low",
+    repository_allows_auto_merge: true,
+    high_risk_flags: [],
+    authorization: {},
+  });
+  assert.equal(automaticLowRisk.authorize_merge, true);
+  assert.equal(automaticLowRisk.merge_mode, "AUTOMATIC_LOW_RISK");
+
+  const missingRiskMetadata = evaluateMerge({
+    ...input,
+    profile: "solo_fast",
+    risk: "Low",
+    repository_allows_auto_merge: true,
+    authorization: {},
+  });
+  assert.equal(missingRiskMetadata.authorize_merge, false);
+
+  const automaticMedium = evaluateMerge({
+    ...input,
+    profile: "solo_fast",
+    risk: "Medium",
+    repository_allows_auto_merge: true,
+    authorization: {},
+  });
+  assert.equal(automaticMedium.authorize_merge, false);
+  assert.equal(automaticMedium.merge_mode, "HUMAN_AUTHORIZATION");
 
   const staleSha = evaluateMerge({ ...input, pr: { ...input.pr, head_sha: "cccccccccccccccccccccccccccccccccccccccc" } });
   assert.equal(staleSha.authorize_merge, false);

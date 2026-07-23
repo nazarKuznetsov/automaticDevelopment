@@ -1,15 +1,17 @@
 ---
 name: github-agent-worker
-description: Deliver exactly one approved Ready GitHub leaf Issue as the sole tracked-file author in one fresh top-level Codex task, managed worktree, agent/* branch, and pull request using TDD, surface verification, bounded fresh review subagents, branch CI, and exact-SHA admission. Use only from a verified Worker Packet; never merge, create Issues, or expand scope.
+description: Deliver one approved target-owned Ready leaf after repository identity, manifest ownership, authority-lease, and surface preflight. Return SOURCE_REPAIR_REQUIRED before writes for managed core and GENERATOR_REQUIRED for generated paths; otherwise use TDD, risk-tiered review, branch CI, and deterministic admission.
 ---
 
 # GitHub Agent Worker
 
-Read `AGENTS.md`, the raw Issue, Worker Packet, canonical contract links, `.codex/agent-workflow.json`, current branch/PR state, and [references/worker-runtime.md](references/worker-runtime.md). Do not rely on an Orchestrator chat summary.
+Read `AGENTS.md`, the raw Issue, Worker Packet, canonical contract links, `.codex/agent-workflow.json`, current branch/PR state, and [references/worker-runtime.md](references/worker-runtime.md). Do not rely on an Orchestrator chat summary. For non-manifest product paths, require the packet's explicit host partition; never silently treat an unclassified path as product-owned.
 
 ## Start and Surface Gate
 
-Before any tracked write, verify Ready leaf state, claim, managed worktree, branch, `base_sha_at_launch`, acceptance, owner layer, conflict keys, touch points, dependencies, validation, reviewers, and gates. Trace the owner layer vertically and coupled surfaces horizontally.
+Before any tracked write, verify Ready leaf state, claim, managed worktree, branch, `base_sha_at_launch`, Wave Authority Lease, acceptance, owner layer, conflict keys, touch points, dependencies, validation, reviewers, and gates. Run `evaluateRepositoryIdentity` and `evaluateWorkerPreflight` using the installed manifest.
+
+If config, remote, packet, or Issue repository differ, return BLOCKED. If any touch point is unknown, return a Surface Update. If a touch point is generated, return `GENERATOR_REQUIRED`. If a touch point is managed, write nothing and return `SOURCE_REPAIR_REQUIRED` with the Kit Maintenance Packet/routing result.
 
 If the observed owner layer or surface adds a conflict key/touch point, stop before writing and return a Surface Update Packet. Never silently broaden the branch.
 
@@ -30,12 +32,12 @@ Use a recorded docs/config exemption only when behavior is unchanged.
 
 Do not create a Bug Issue. Return the complete Finding Packet from [references/worker-runtime.md](references/worker-runtime.md).
 
-For Low/Medium work, use fresh minimal-context direct subagents at depth one, with at most two active simultaneously:
+Choose review topology from the configured profile and risk:
 
-- reviewer: read-only correctness/test review;
-- QA: non-authoring reproduction and primary-signal evidence;
-- admission-reviewer: distinct final audit using `$github-pre-pr-reviewer`;
-- design/security: conditional.
+- non-regulated Low: one independent combined reviewer/QA; deterministic admission; no separate admission-agent task;
+- Medium: distinct reviewer and QA plus deterministic admission and exact merge authorization;
+- High: separate specialist top-level review and human gate;
+- design/security remain conditional on the affected surface.
 
 Give each raw Issue, Worker Packet, diff, exact SHA, and CI evidence without Worker conclusions. IDs must be distinct. High/security/auth/data/migration review is requested from Orchestrator as a separate top-level task.
 
@@ -43,6 +45,6 @@ After every commit, invalidate earlier CI/review/QA/admission. Before admission,
 
 ## PR and Lifecycle
 
-The admission-reviewer authors the independent evidence; the Worker only runs `.codex/scripts/pre-pr-gate.mjs --evidence <path>`. Create one PR only after gate PASS for current HEAD and no owning PR. The hook is defense-in-depth.
+The Worker supplies raw risk-appropriate review evidence and runs `.codex/scripts/pre-pr-gate.mjs --evidence <path>`. Create one PR only after deterministic gate PASS for current HEAD and no owning PR. The hook is defense-in-depth.
 
-Never merge. Keep this Worker task available after PR creation. On requested changes or failing PR checks, convert the same PR to Draft, return the Issue to In Progress, and continue in the same task/branch/PR. Archive only after Orchestrator confirms merge, post-merge CI, and Done.
+Never merge directly; the Orchestrator owns both profile-allowed Low-risk automatic merge and exact-authorized merge. Keep this Worker available until post-merge Done.

@@ -3,9 +3,10 @@
 ## Materialization
 
 ```text
-DIGEST_BOUND_PACKETS → VALIDATE_MODE → CREATE_TOP_DOWN → RELATE_NATIVE
-→ ADD_TO_PROJECT → READBACK → MAP_PLAN_IDS → PUBLISH_REPORT
-→ LABEL_PASSING_LEAVES (wave_execution only)
+LOCK/REMOTE/CONFIG IDENTITY → AUTHORITY_LEASE → OWNERSHIP PREFLIGHT
+→ BUILD EXECUTION HORIZON → RESUME OPERATION JOURNAL
+→ CREATE/ADVANCE ONLY → READBACK → PUBLISH REPORT
+→ LAUNCH PASSING LEAVES (wave_execution only)
 ```
 
 `materialization_only` accepts an empty Ready wave and must produce zero
@@ -16,6 +17,12 @@ Run `validatePlanContracts(contracts, { require_approval: true })` followed by
 `evaluateOrchestratorStart(contracts, startPacket)` before any write. These are
 admission decisions, not advisory diagnostics. A blocker list means zero GitHub
 mutations.
+
+Materialize only current Phase Plan hierarchy and upstream dependencies required by its at-most-five Ready leaves. Never materialize unrelated future roadmap Epics merely because they exist in the approved artifact.
+
+Every operation has a stable digest independent of task/run identity and records `before`, `target`, `after`, and `action`. Closed Issues stay closed, an observed Project status ahead of target is kept, existing relations are kept, and completed operation IDs are excluded from retries. Technical failure produces `RESUMABLE`, not a return to Planning.
+
+After each report readback, `orchestratorControl` selects the next action. `RESUMABLE` continues the journal; `COMPLETE` with an executable queue returns `LAUNCH_FIRST_WORKER` in the same Orchestrator session; invalid authority or `BLOCKED` state never falls back to Planning.
 
 Use supported GitHub CLI/API operations for native hierarchy and dependencies. Probe the installed CLI help before mutation. Current documented CLI shapes are:
 
@@ -52,6 +59,10 @@ UNCLAIMED → CLAIMED → CREATING → LAUNCHED → PR_OPEN → MERGED → DONE 
                 └ ambiguous → QUERY_EXISTING_TASK → CREATING | LAUNCHED
 ```
 
+Before `CLAIMED`, bind config/remote/packet/Issue to one repository and classify every touch point. The manifest decides ownership for every Kit-listed path. A non-manifest product path becomes `host` only through an explicit target-surface declaration; generated paths require generator evidence. `managed` routes to the lock-recorded source, `generated` routes to its generator, and `unknown` blocks. Only an all-host target scope may become `CLAIMED`.
+
+Source maintenance advances through stable readback-driven actions: `SEARCH_SOURCE_WORK → CREATE_SOURCE_ISSUE | LAUNCH_SOURCE_WORKER | WAIT/REVIEW/MERGE_SOURCE_PR → INSTALL_EXACT_SOURCE_SHA → RUN_TARGET_REGRESSION → RESUME_TARGET_WAVE`. Existing fingerprinted Issues/PRs skip creation. Each transition uses the same Maintenance Packet; target adoption does not start until the exact merged source SHA is installed.
+
 `CREATING` may contain only a queued/client ID. `LAUNCHED` requires canonical top-level task ID plus managed-worktree readback. Reject forked tasks and temporary/manual worktrees.
 
 The readback must contain matching canonical task/worktree IDs, top-level task kind, task `READY|RUNNING`, managed-worktree ownership, worktree `READY`, and observed provenance from the Codex task/worktree readback surfaces. Strings copied from a creation response are not readback.
@@ -79,8 +90,8 @@ Accept only a Merge Authorization Packet bound to repository, PR, exact current 
 - required checks and unresolved review threads;
 - native dependencies and high-risk gates.
 
-Any head/base/admission change invalidates authorization. Merge with `expected_head_sha`; require canonical merge readback with PR, head SHA, merge commit SHA, and URL. Post-merge CI must have a run URL/workflow and be bound to that merge commit. Only this evidence permits Done/archive. Post-merge FAIL creates a blocking finding path and leaves Issue in Review.
+`solo_fast` Low risk may skip the separate Merge Authorization Packet only when deterministic admission, checks, dependencies, threads, and repository policy all pass. Medium/High and other profiles retain exact authorization. Require canonical merge readback with PR, head SHA, merge commit SHA, and URL in every profile.
 
 ## Handoff
 
-At wave completion or five launches, stop launches and emit Orchestrator State/Handoff. A replacement must reconstruct from GitHub, write takeover readback, and identify its canonical task ID before the old task is archived. Never publish absolute local filesystem paths in the GitHub ledger.
+At wave completion or five launches, stop launches and emit Orchestrator State/Handoff including authority ID, run ID, completed/remaining operation IDs, write/launch budget consumption, and source-maintenance links. A replacement reuses an unexpired unchanged lease; task replacement alone never requests product approval again.

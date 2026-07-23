@@ -1,5 +1,23 @@
 # Worker runtime packets v2
 
+## Pre-write ownership result
+
+The Worker runs repository identity and ownership preflight before RED:
+
+```yaml
+action: ALLOW_TARGET_WORKER | SOURCE_REPAIR_REQUIRED | GENERATOR_REQUIRED | BLOCKED
+launch_target_worker: false
+classification:
+  managed: []
+  host: []
+  generated: []
+  unknown: []
+```
+
+The manifest is authoritative for Kit-listed paths. Non-manifest product paths must appear in the packet's explicit `host` partition and `allowed_paths`; absence remains `unknown`. A claimed host path that conflicts with manifest ownership is BLOCKED.
+
+`SOURCE_REPAIR_REQUIRED` includes a schema-valid Kit Maintenance Packet with a stable fingerprint, source repository from lock v3, originating target Issue, managed paths, and adoption requirement. It contains no local path. Orchestrator searches for a duplicate source Issue before creating one. If source access is unavailable, publish the same packet with `BLOCK_AND_REPORT`.
+
 ## Surface Update
 
 Return before tracked writes when reality exceeds the Worker Packet:
@@ -46,7 +64,7 @@ suggested_boundary: Separate Bug
 
 Do not publish empty placeholder values. The Worker may propose duplicate-search terms, but Orchestrator performs and records the authoritative GitHub search.
 
-## Minimal review context
+## Risk-tiered review context
 
 Pass each fresh reviewer only:
 
@@ -56,7 +74,7 @@ Pass each fresh reviewer only:
 - branch CI URL/evidence;
 - relevant source and tests.
 
-Do not pass Worker conclusions or full Orchestrator/roadmap history. Run at most two direct subagents simultaneously and never allow depth greater than one.
+Do not pass Worker conclusions or full Orchestrator/roadmap history. Non-regulated Low uses one combined reviewer/QA. Medium and `regulated` use separate reviewer, QA, and admission evidence. High adds separate top-level specialists. Deterministic admission always rechecks exact target, SHA/base, tree, commands, and evidence.
 
 ## Freshness
 

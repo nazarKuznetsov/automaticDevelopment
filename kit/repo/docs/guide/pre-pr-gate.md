@@ -15,20 +15,22 @@ PR creation is a state transition. Admission accepts exactly one subject:
 
 Mixed, orphaned, or unknown subject fields fail closed. Bootstrap and Canonical publication are narrow setup/publication exceptions, not Issue or merge bypasses. Their exact repository, branch, base binding, revision, approval, allowed paths, content hashes, and supersession contract come only from the authoritative default-branch `.codex/agent-workflow.json`; human-readable readback belongs in the host-owned project runbook.
 
+Admission is bound to the configured automation profile and Issue risk. Non-regulated Low-risk work uses one independent combined reviewer/QA plus deterministic admission. Medium/High and `regulated` work retain separate reviewer, QA, and admission evidence.
+
 Before any PR tool runs, require:
 
 1. all acceptance criteria and the primary signal;
 2. TDD RED/GREEN or an allowed behavior-neutral exemption;
 3. exact targeted, full, and integration validation;
 4. clean tracked tree before/after QA and gate validation;
-5. distinct reviewer, QA, and admission-reviewer identities, plus conditional specialists;
+5. the exact reviewer/QA/admission topology required by profile and risk, plus conditional specialists;
 6. branch CI for the exact current head SHA;
 7. unchanged default-branch SHA since Worker launch;
 8. no blocking dependency or human gate;
 9. no new/touched failure, and traceable legacy Bug exemptions;
 10. documentation and rollout resolved.
 
-The admission-reviewer runs `$github-pre-pr-reviewer` in a fresh non-authoring context and returns machine evidence. The Worker cannot author or “correct” that PASS. It invokes:
+When the topology requires it, the admission-reviewer runs `$github-pre-pr-reviewer` in a fresh non-authoring context and returns machine evidence. For non-regulated Low-risk work, the combined reviewer/QA returns its independent result and the Worker proceeds directly to the deterministic gate. The Worker cannot author or “correct” either result. It invokes:
 
 ```bash
 node .codex/scripts/pre-pr-gate.mjs --evidence /path/to/evidence.json

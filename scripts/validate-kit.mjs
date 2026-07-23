@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const root = process.cwd();
@@ -24,6 +24,7 @@ const required = [
   "src/pages/docs/[slug].astro",
   "src/layouts/DocLayout.astro",
   "kit/manifest.json",
+  "kit/lock.schema.json",
   "kit/repo/.codex/agent-workflow.json",
   "kit/repo/.codex/hooks.json",
   "kit/repo/.codex/scripts/pre-pr-gate.mjs",
@@ -38,7 +39,11 @@ for (const path of required) {
 }
 
 const manifest = JSON.parse(readFileSync(join(root, "kit", "manifest.json"), "utf8"));
-if (manifest.schema_version !== 2 || manifest.kit_version !== "2.0.2") fail("manifest is not workflow v2.0.2");
+if (manifest.schema_version !== 2 || manifest.kit_version !== "2.1.0") fail("manifest is not workflow v2.1.0");
+const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+if (packageJson.version !== manifest.kit_version) fail("package and manifest versions drifted");
+const lockSchema = JSON.parse(readFileSync(join(root, "kit", "lock.schema.json"), "utf8"));
+if (lockSchema.properties?.schema_version?.const !== 3) fail("kit lock schema is not v3");
 const manifestPaths = manifest.files.map((entry) => entry.path).sort();
 const kitFiles = filesUnder(kitRoot);
 if (JSON.stringify(manifestPaths) !== JSON.stringify(kitFiles)) {
@@ -46,7 +51,21 @@ if (JSON.stringify(manifestPaths) !== JSON.stringify(kitFiles)) {
   const stale = manifestPaths.filter((path) => !kitFiles.includes(path));
   fail(`manifest drift; missing=[${missing.join(", ")}] stale=[${stale.join(", ")}]`);
 }
-if (manifest.files.some((entry) => !new Set(["host", "managed"]).has(entry.ownership))) fail("manifest has invalid ownership");
+if (manifest.files.some((entry) => !new Set(["host", "managed", "generated"]).has(entry.ownership))) fail("manifest has invalid ownership");
+for (const entry of manifest.files) {
+  const segments = entry.path.replaceAll("\\", "/").split("/");
+  const localCodexMetadata = /^\.codex\/(?:(?:tasks|threads|sessions|worktrees|projects)(?:\/|$)|(?:task|thread|session|worktree|project)(?:-id)?\.json$)/.test(entry.path);
+  if (!entry.path
+    || entry.path.startsWith("/")
+    || segments.includes("..")
+    || segments.includes(".git")
+    || segments.includes(".gitmodules")
+    || localCodexMetadata) {
+    fail(`manifest has unsafe metadata path: ${entry.path}`);
+  }
+  const source = join(kitRoot, entry.path);
+  if (lstatSync(source).isSymbolicLink() || !lstatSync(source).isFile()) fail(`manifest source is not a regular file: ${entry.path}`);
+}
 const ownership = Object.fromEntries(manifest.files.map((entry) => [entry.path, entry.ownership]));
 for (const path of [".codex/agent-workflow.json", "docs/project-workflow-runbook.md"]) {
   if (ownership[path] !== "host") fail(`${path} must be host-owned`);
@@ -87,6 +106,8 @@ if (workflow.schema_version !== 2 || workflow.execution.max_workers !== 2 || wor
   fail("workflow defaults drifted");
 }
 if (workflow.execution.orchestrator_scope !== "wave"
+  || workflow.execution.automation_profile !== "team_safe"
+  || workflow.execution.managed_change_policy !== "route_to_source"
   || workflow.execution.task_strategy !== "fresh_top_level_per_leaf"
   || workflow.execution.worker_environment !== "managed_worktree"
   || workflow.execution.forbid_worker_fork !== true
@@ -94,9 +115,9 @@ if (workflow.execution.orchestrator_scope !== "wave"
   || workflow.execution.subagent_max_depth !== 1
   || workflow.execution.max_active_subagents_per_worker !== 2
   || workflow.execution.claim_stale_after_missed_heartbeats !== 3
-  || workflow.merge?.mode !== "human_approval_then_orchestrator"
+  || workflow.merge?.mode !== "profile_risk_then_orchestrator"
   || workflow.merge?.approval_binding !== "pr_and_head_sha"
-  || workflow.merge?.automatic_low_risk_merge !== false) {
+  || workflow.merge?.automatic_low_risk_merge !== true) {
   fail("wave/task/merge workflow defaults drifted");
 }
 for (const agent of ["planner", "reviewer", "qa", "admission-reviewer", "security-reviewer", "design-reviewer"]) {
@@ -117,5 +138,9 @@ for (const path of textFiles) {
   if (/\bTO[D]O\b|\bT[B]D\b/.test(content)) fail(`${path} contains unresolved placeholder text`);
   if (path.startsWith("docs/guide/") && /BotBasketFlow/.test(content)) fail(`${path} contains repository-specific product text`);
 }
+const installedQuickstart = readFileSync(join(kitRoot, "docs", "guide", "quickstart.md"), "utf8");
+if (/automaticDevelopment|git clone https:\/\/github\.com\//.test(installedQuickstart)) {
+  fail("installed quickstart must not infer or hardcode the kit source repository");
+}
 
-console.log(`PASS: workflow v2 validated (${kitFiles.length} kit files, ${guideFiles.length} canonical guide pages)`);
+console.log(`PASS: workflow v2.1 validated (${kitFiles.length} kit files, ${guideFiles.length} canonical guide pages)`);
