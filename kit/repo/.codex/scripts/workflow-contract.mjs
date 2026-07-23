@@ -35,6 +35,7 @@ const REQUIRED_READY_FIELDS = [
 
 const RAW_ADMISSION_FIELDS = new Set([
   "schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha",
+  "automation_profile",
   "qa_tracked_worktree", "gate_tracked_worktree", "worker", "executor", "publisher", "issue",
   "bootstrap", "canonical_publication", "acceptance", "tdd", "local_validation", "reviews",
   "branch_ci", "baseline", "documentation", "rollout", "human_gates", "existing_pr_for_sha",
@@ -72,10 +73,580 @@ const PROJECT_FIELD_VALUES = {
   status: MATERIALIZATION_STATUSES,
 };
 
+const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const AUTOMATION_PROFILES = Object.freeze({
+  solo_fast: Object.freeze({
+    profile: "solo_fast",
+    automatic_github_writes: true,
+    automatic_worker_launches: true,
+    automatic_low_risk_merge: true,
+    medium_high_exact_merge_authorization: true,
+  }),
+  team_safe: Object.freeze({
+    profile: "team_safe",
+    automatic_github_writes: true,
+    automatic_worker_launches: true,
+    automatic_low_risk_merge: false,
+    medium_high_exact_merge_authorization: true,
+  }),
+  regulated: Object.freeze({
+    profile: "regulated",
+    automatic_github_writes: false,
+    automatic_worker_launches: false,
+    automatic_low_risk_merge: false,
+    medium_high_exact_merge_authorization: true,
+  }),
+});
+const PROJECT_STATUS_ORDER = Object.freeze([
+  "Backlog",
+  "Ready",
+  "In Progress",
+  "Validation",
+  "Review",
+  "Done",
+]);
+
 function validConflictKeys(value) {
   return hasStringList(value)
     && value.every((key) => CONFLICT_KEY_PATTERN.test(key))
     && new Set(value).size === value.length;
+}
+
+export function evaluateRepositoryIdentity(identity = {}) {
+  const fields = [
+    "config_repository",
+    "remote_repository",
+    "packet_repository",
+    "issue_repository",
+  ];
+  const blockers = [];
+  const repository = identity.config_repository;
+  for (const field of fields) {
+    const value = identity[field];
+    if (!REPOSITORY_PATTERN.test(value ?? "")) {
+      blockers.push(`${field} must contain an exact owner/repository identity.`);
+    } else if (hasText(repository) && value !== repository) {
+      blockers.push(`${field} does not match config_repository ${repository}.`);
+    }
+  }
+  return {
+    valid: blockers.length === 0,
+    repository: blockers.length === 0 ? repository : undefined,
+    blockers: [...new Set(blockers)],
+  };
+}
+
+function normalizeWorkflowPath(value) {
+  const path = String(value ?? "").replaceAll("\\", "/").replace(/^\.\//, "");
+  const segments = path.split("/");
+  if (!path
+    || path.startsWith("/")
+    || /^[A-Za-z]:\//.test(path)
+    || segments.some((segment) => !segment || new Set([".", "..", ".git"]).has(segment))) {
+    return "";
+  }
+  return path;
+}
+
+export function classifyTouchOwnership({
+  touch_points = [],
+  manifest_files = [],
+  declared_ownership = {},
+} = {}) {
+  const blockers = [];
+  const ownershipByPath = new Map(
+    manifest_files.map((entry) => [
+      normalizeWorkflowPath(entry?.path),
+      entry?.ownership,
+    ]),
+  );
+  const declaredByPath = new Map();
+  for (const ownership of ["managed", "host", "generated", "unknown"]) {
+    for (const rawPath of declared_ownership?.[ownership] ?? []) {
+      const path = normalizeWorkflowPath(rawPath);
+      if (!path) {
+        blockers.push(`Declared ${ownership} touch point is not a safe repository-relative path: ${rawPath}.`);
+        continue;
+      }
+      const previous = declaredByPath.get(path);
+      if (previous && previous !== ownership) {
+        blockers.push(`Touch point ${path} has conflicting declared ownership: ${previous} and ${ownership}.`);
+      } else {
+        declaredByPath.set(path, ownership);
+      }
+    }
+  }
+  const result = {
+    managed: [],
+    host: [],
+    generated: [],
+    unknown: [],
+  };
+  for (const rawPath of touch_points) {
+    const path = normalizeWorkflowPath(rawPath);
+    if (!path) {
+      blockers.push(`Touch point is not a safe repository-relative path: ${rawPath}.`);
+      result.unknown.push(String(rawPath ?? ""));
+      continue;
+    }
+    const manifestOwnership = ownershipByPath.get(path);
+    const declaredOwnership = declaredByPath.get(path);
+    if (manifestOwnership && declaredOwnership && manifestOwnership !== declaredOwnership) {
+      blockers.push(`Touch point ${path} conflicts with manifest ownership ${manifestOwnership}.`);
+    }
+    if (!manifestOwnership && declaredOwnership === "managed") {
+      blockers.push(`Touch point ${path} cannot be declared managed without a manifest entry.`);
+    }
+    const ownership = manifestOwnership ?? declaredOwnership;
+    if (ownership === "managed") result.managed.push(path);
+    else if (ownership === "host") result.host.push(path);
+    else if (ownership === "generated") result.generated.push(path);
+    else result.unknown.push(path);
+  }
+  const touchPointSet = new Set(touch_points.map(normalizeWorkflowPath).filter(Boolean));
+  for (const path of declaredByPath.keys()) {
+    if (!touchPointSet.has(path)) blockers.push(`Declared ownership contains a path outside touch_points: ${path}.`);
+  }
+  for (const key of Object.keys(result)) result[key] = [...new Set(result[key])].sort();
+  const populated = ["managed", "host", "generated"].filter((key) => result[key].length > 0);
+  const scope = populated.length > 1 ? "mixed" : (populated[0] ?? "unknown");
+  return {
+    valid: blockers.length === 0 && result.unknown.length === 0 && touch_points.length > 0,
+    scope,
+    blockers: [...new Set(blockers)],
+    ...result,
+  };
+}
+
+export function routeManagedChange({
+  classification = {},
+  policy = "block_and_report",
+  source_access = false,
+  source_repository,
+  target_repository,
+  source_issue = {},
+  summary,
+} = {}) {
+  const managedPaths = [...new Set(classification.managed ?? [])].sort();
+  if (managedPaths.length === 0) {
+    return { action: "TARGET_WORKER", launch_target_worker: classification.valid === true };
+  }
+  const fingerprint = createHash("sha256").update(JSON.stringify({
+    managed_paths: managedPaths,
+    source_repository,
+    summary,
+  })).digest("hex");
+  const maintenancePacket = {
+    schema_version: 2,
+    packet_type: "kit_maintenance",
+    fingerprint,
+    repository: source_repository,
+    target_repository,
+    source_issue,
+    summary,
+    managed_paths: managedPaths,
+    target_adoption: {
+      host_paths: [...new Set(classification.host ?? [])].sort(),
+      generated_paths: [...new Set(classification.generated ?? [])].sort(),
+    },
+    adoption_required: true,
+  };
+  const canRoute = policy === "route_to_source"
+    && source_access === true
+    && REPOSITORY_PATTERN.test(source_repository ?? "")
+    && source_repository !== target_repository;
+  return {
+    action: canRoute ? "AUTO_ROUTE" : "BLOCK_AND_REPORT",
+    launch_target_worker: false,
+    maintenance_packet: maintenancePacket,
+  };
+}
+
+export function evaluateWorkerPreflight({
+  worker_packet = {},
+  manifest_files = [],
+  source_access = false,
+  worker_launches = 0,
+  github_writes = 0,
+  now = new Date().toISOString(),
+} = {}) {
+  const identity = evaluateRepositoryIdentity(worker_packet.repository_identity);
+  const classification = classifyTouchOwnership({
+    touch_points: worker_packet.touch_points,
+    manifest_files,
+    declared_ownership: worker_packet.touch_ownership,
+  });
+  const blockers = [...identity.blockers, ...classification.blockers];
+  if (worker_packet.repository !== identity.repository) {
+    blockers.push("Worker Packet top-level repository does not match repository identity.");
+  }
+  if (worker_packet.touch_ownership?.scope !== classification.scope) {
+    blockers.push(`Worker Packet touch_ownership scope does not match computed ${classification.scope} scope.`);
+  }
+  for (const ownership of ["managed", "host", "generated", "unknown"]) {
+    const declared = [...new Set((worker_packet.touch_ownership?.[ownership] ?? [])
+      .map(normalizeWorkflowPath).filter(Boolean))].sort();
+    if (!sameStringList(declared, classification[ownership])) {
+      blockers.push(`Worker Packet ${ownership} ownership partition does not match computed touch points.`);
+    }
+  }
+  const allowedPaths = new Set((worker_packet.allowed_paths ?? []).map(normalizeWorkflowPath).filter(Boolean));
+  for (const rawPath of worker_packet.touch_points ?? []) {
+    const path = normalizeWorkflowPath(rawPath);
+    if (!allowedPaths.has(path)) blockers.push(`Touch point is outside allowed_paths: ${path}.`);
+  }
+  const sourceRepository = worker_packet.kit_source_binding?.source_repository;
+  if (!REPOSITORY_PATTERN.test(sourceRepository ?? "")
+    || sourceRepository === identity.repository
+    || !/^[0-9a-f]{40}$/.test(worker_packet.kit_source_binding?.source_commit ?? "")) {
+    blockers.push("Worker Packet requires a distinct exact-SHA kit source binding.");
+  }
+  if (classification.unknown.length > 0) blockers.push(`Touch points have unknown ownership: ${classification.unknown.join(", ")}.`);
+  if (blockers.length > 0) {
+    return {
+      action: "BLOCKED",
+      launch_target_worker: false,
+      blockers: [...new Set(blockers)],
+      classification,
+    };
+  }
+  const leaseAction = classification.managed.length > 0 ? "create_source_maintenance" : "create_worker";
+  const leaseRepository = classification.managed.length > 0 ? sourceRepository : identity.repository;
+  const leaseResult = evaluateAuthorityLease(worker_packet.authority_lease, {
+    repository: leaseRepository,
+    plan_revision: worker_packet.authority_lease?.plan_revision,
+    plan_item_id: worker_packet.plan_item_id,
+    issue_id: worker_packet.issue,
+    action: leaseAction,
+    worker_launches,
+    github_writes,
+  }, { now });
+  if (!leaseResult.valid) {
+    return {
+      action: "BLOCKED",
+      launch_target_worker: false,
+      blockers: leaseResult.blockers,
+      classification,
+    };
+  }
+  if (classification.generated.length > 0) {
+    return {
+      action: "GENERATOR_REQUIRED",
+      launch_target_worker: false,
+      blockers: [],
+      classification,
+    };
+  }
+  if (classification.managed.length > 0) {
+    const routing = routeManagedChange({
+      classification,
+      policy: worker_packet.managed_change_policy,
+      source_access,
+      source_repository: sourceRepository,
+      target_repository: identity.repository,
+      source_issue: { repository: identity.repository, number: worker_packet.issue },
+      summary: worker_packet.summary ?? worker_packet.merge_outcome,
+    });
+    return {
+      action: "SOURCE_REPAIR_REQUIRED",
+      launch_target_worker: false,
+      blockers: [],
+      classification,
+      routing,
+    };
+  }
+  return {
+    action: "ALLOW_TARGET_WORKER",
+    launch_target_worker: true,
+    blockers: [],
+    classification,
+  };
+}
+
+function exactRepositoryUrl(url, repository, resource) {
+  if (!hasText(url) || !REPOSITORY_PATTERN.test(repository ?? "")) return false;
+  const suffix = resource === "issue" ? "issues" : "pull";
+  return new RegExp(`^https://github\\.com/${repository.replace("/", "\\/")}/${suffix}/[1-9][0-9]*$`).test(url);
+}
+
+export function evaluateSourceMaintenanceProgress({
+  routing = {},
+  duplicate_search = {},
+  source_issue = {},
+  source_worker = {},
+  source_pr = {},
+  target_installation = {},
+  target_regression = {},
+  wave_resume = {},
+} = {}) {
+  if (routing.action !== "AUTO_ROUTE") {
+    return {
+      status: "BLOCKED",
+      next_action: "BLOCK_AND_REPORT",
+      blockers: ["Source maintenance is not authorized for automatic routing."],
+    };
+  }
+  const packet = routing.maintenance_packet ?? {};
+  const blockers = [];
+  if (!REPOSITORY_PATTERN.test(packet.repository ?? "")
+    || !REPOSITORY_PATTERN.test(packet.target_repository ?? "")
+    || packet.repository === packet.target_repository
+    || !DIGEST_PATTERN.test(packet.fingerprint ?? "")
+    || !hasStringList(packet.managed_paths)) {
+    blockers.push("Kit Maintenance Packet has invalid source/target/fingerprint/path binding.");
+  }
+  if (blockers.length > 0) return { status: "BLOCKED", next_action: "BLOCK_AND_REPORT", blockers };
+  if (duplicate_search.observed !== true) {
+    return { status: "ACTIVE", next_action: "SEARCH_SOURCE_WORK", blockers: [] };
+  }
+
+  const duplicateIssue = duplicate_search.issue_url;
+  const duplicatePr = duplicate_search.pr_url;
+  if (duplicateIssue && !exactRepositoryUrl(duplicateIssue, packet.repository, "issue")) {
+    return { status: "BLOCKED", next_action: "BLOCK_AND_REPORT", blockers: ["Duplicate Issue belongs to the wrong source repository."] };
+  }
+  if (duplicatePr && !exactRepositoryUrl(duplicatePr, packet.repository, "pull")) {
+    return { status: "BLOCKED", next_action: "BLOCK_AND_REPORT", blockers: ["Duplicate PR belongs to the wrong source repository."] };
+  }
+  if (!duplicateIssue && !duplicatePr && source_issue.observed !== true) {
+    return { status: "ACTIVE", next_action: "CREATE_SOURCE_ISSUE", blockers: [] };
+  }
+  const selectedIssue = duplicateIssue ?? source_issue.issue_url;
+  if (selectedIssue && (!exactRepositoryUrl(selectedIssue, packet.repository, "issue")
+    || (source_issue.fingerprint && source_issue.fingerprint !== packet.fingerprint))) {
+    return { status: "BLOCKED", next_action: "BLOCK_AND_REPORT", blockers: ["Source Issue readback does not match the maintenance fingerprint/repository."] };
+  }
+  const selectedPr = duplicatePr ?? source_pr.pr_url;
+  if (!selectedPr && !(source_worker.observed === true && source_worker.status === "LAUNCHED")) {
+    return { status: "ACTIVE", next_action: "LAUNCH_SOURCE_WORKER", blockers: [] };
+  }
+  if (!selectedPr && !source_pr.pr_url) {
+    return { status: "ACTIVE", next_action: "WAIT_SOURCE_PR", blockers: [] };
+  }
+  if (!exactRepositoryUrl(selectedPr, packet.repository, "pull")
+    || source_pr.observed !== true
+    || source_pr.admission !== "PASS") {
+    return { status: "ACTIVE", next_action: "REVIEW_SOURCE_PR", blockers: [] };
+  }
+  const mergedSourceSha = source_pr.merged_source_sha;
+  if (!/^[0-9a-f]{40}$/.test(mergedSourceSha ?? "")) {
+    return { status: "ACTIVE", next_action: "MERGE_SOURCE_PR", blockers: [] };
+  }
+  if (target_installation.observed !== true || target_installation.source_commit !== mergedSourceSha) {
+    return { status: "ACTIVE", next_action: "INSTALL_EXACT_SOURCE_SHA", blockers: [], merged_source_sha: mergedSourceSha };
+  }
+  if (target_regression.observed !== true
+    || target_regression.source_commit !== mergedSourceSha
+    || target_regression.status !== "PASS") {
+    return { status: "ACTIVE", next_action: "RUN_TARGET_REGRESSION", blockers: [], merged_source_sha: mergedSourceSha };
+  }
+  if (wave_resume.observed !== true || wave_resume.source_commit !== mergedSourceSha) {
+    return { status: "ACTIVE", next_action: "RESUME_TARGET_WAVE", blockers: [], merged_source_sha: mergedSourceSha };
+  }
+  return {
+    status: "COMPLETE",
+    next_action: "NONE",
+    blockers: [],
+    merged_source_sha: mergedSourceSha,
+  };
+}
+
+export function automationProfile(profile = "team_safe") {
+  const selected = AUTOMATION_PROFILES[profile];
+  if (!selected) throw new Error(`Unknown automation profile: ${profile}`);
+  return { ...selected };
+}
+
+export function reviewTopologyForRisk({ profile = "team_safe", risk } = {}) {
+  automationProfile(profile);
+  if (!new Set(["Low", "Medium", "High"]).has(risk)) throw new Error(`Unknown risk: ${risk}`);
+  if (risk === "High") {
+    return {
+      reviewers: ["reviewer", "qa", "admission-reviewer", "security-reviewer", "domain-reviewer"],
+      deterministic_admission: true,
+      exact_merge_authorization: true,
+      automatic_merge: false,
+    };
+  }
+  if (risk === "Medium") {
+    return {
+      reviewers: ["reviewer", "qa", "admission-reviewer"],
+      deterministic_admission: true,
+      exact_merge_authorization: true,
+      automatic_merge: false,
+    };
+  }
+  return {
+    reviewers: profile === "regulated" ? ["reviewer", "qa", "admission-reviewer"] : ["reviewer-qa"],
+    deterministic_admission: true,
+    exact_merge_authorization: profile !== "solo_fast",
+    automatic_merge: profile === "solo_fast",
+  };
+}
+
+export function evaluateAuthorityLease(lease = {}, context = {}, { now = new Date().toISOString() } = {}) {
+  const blockers = [];
+  try {
+    automationProfile(lease.profile);
+  } catch (error) {
+    blockers.push(error.message);
+  }
+  if (!hasText(lease.authority_id)) blockers.push("Authority lease requires a stable authority_id.");
+  if (!hasText(lease.approved_by)) blockers.push("Authority lease requires approved_by.");
+  if (!hasText(lease.plan_revision) || lease.plan_revision !== context.plan_revision) blockers.push("Authority lease plan revision does not match.");
+  if (!hasStringList(lease.repositories) || !lease.repositories.includes(context.repository)) blockers.push("Authority lease does not cover this repository.");
+  if (!hasStringList(lease.plan_item_ids) && !Array.isArray(lease.issue_ids)) blockers.push("Authority lease requires plan or Issue scope.");
+  if (hasText(context.plan_item_id) && !(lease.plan_item_ids ?? []).includes(context.plan_item_id)) blockers.push("Authority lease does not cover this plan item.");
+  if (Number.isInteger(context.issue_id) && !(lease.issue_ids ?? []).includes(context.issue_id)) blockers.push("Authority lease does not cover this Issue.");
+  if (!hasStringList(lease.allowed_actions) || !lease.allowed_actions.includes(context.action)) blockers.push("Authority lease does not allow this action.");
+  if (!Number.isInteger(lease.max_worker_launches) || lease.max_worker_launches < 0
+    || !Number.isInteger(context.worker_launches) || context.worker_launches > lease.max_worker_launches) {
+    blockers.push("Authority lease Worker launch budget is invalid or exhausted.");
+  }
+  if (!Number.isInteger(lease.max_github_writes) || lease.max_github_writes < 0
+    || !Number.isInteger(context.github_writes) || context.github_writes > lease.max_github_writes) {
+    blockers.push("Authority lease GitHub write budget is invalid or exhausted.");
+  }
+  if (!hasText(lease.expires_at) || Number.isNaN(Date.parse(lease.expires_at))
+    || Date.parse(lease.expires_at) <= Date.parse(now)) {
+    blockers.push("Authority lease is invalid or expired.");
+  }
+  return { valid: blockers.length === 0, blockers: [...new Set(blockers)] };
+}
+
+function stableOperationId(repository, kind, key, target) {
+  return createHash("sha256")
+    .update(JSON.stringify({ repository, kind, key, target: canonicalPacketValue(target) }))
+    .digest("hex");
+}
+
+function projectStatusSatisfies(current, target) {
+  if (current === target) return true;
+  if (new Set(["Done", "Canceled"]).has(current)) return true;
+  if (current === "Blocked") {
+    return new Set(["Backlog", "Ready", "In Progress", "Validation", "Blocked"]).has(target);
+  }
+  const currentRank = PROJECT_STATUS_ORDER.indexOf(current);
+  const targetRank = PROJECT_STATUS_ORDER.indexOf(target);
+  return currentRank >= 0 && targetRank >= 0 && currentRank >= targetRank;
+}
+
+export function buildMaterializationJournal({
+  run_id,
+  repository,
+  desired_items = [],
+  desired_relations = [],
+  ledger = {},
+} = {}) {
+  if (!hasText(run_id)) throw new Error("Materialization journal requires run_id.");
+  if (!REPOSITORY_PATTERN.test(repository ?? "")) throw new Error("Materialization journal requires repository.");
+  const existingItems = ledger.items ?? {};
+  const suppliedCompleted = new Set(ledger.completed_operation_ids ?? []);
+  const existingRelations = new Set(ledger.relations ?? []);
+  const partition = { existing: [], missing: [] };
+  const operations = [];
+
+  for (const desired of desired_items) {
+    if (!hasText(desired?.plan_item_id)) throw new Error("Desired materialization item requires plan_item_id.");
+    const key = desired.plan_item_id;
+    const current = existingItems[key];
+    const requestedTarget = desired.target ?? {};
+    const target = { ...requestedTarget };
+    let action = "KEEP";
+    let reason = "ALREADY_DESIRED";
+    if (!current) {
+      partition.missing.push(key);
+      action = "CREATE";
+      reason = "MISSING";
+    } else {
+      partition.existing.push(key);
+      const currentRank = PROJECT_STATUS_ORDER.indexOf(current.project_status);
+      const targetRank = PROJECT_STATUS_ORDER.indexOf(requestedTarget.project_status);
+      const preserveClosed = current.issue_state === "CLOSED" && requestedTarget.issue_state === "OPEN";
+      const preserveBlocked = current.project_status === "Blocked";
+      const preserveTerminal = new Set(["Done", "Canceled"]).has(current.project_status);
+      const preserveAdvanced = currentRank > targetRank && targetRank >= 0;
+      if (preserveClosed) target.issue_state = current.issue_state;
+      if (preserveBlocked || preserveTerminal || preserveAdvanced) target.project_status = current.project_status;
+      const metadataChanged = Object.entries(target).some(([field, value]) => {
+        return !new Set(["issue_state", "project_status"]).has(field)
+          && JSON.stringify(canonicalPacketValue(current[field])) !== JSON.stringify(canonicalPacketValue(value));
+      });
+      if (preserveClosed) {
+        action = metadataChanged ? "ADVANCE" : "KEEP";
+        reason = metadataChanged ? "ALIGN_METADATA_PRESERVE_CLOSED" : "PRESERVE_CLOSED";
+      } else if (preserveBlocked) {
+        action = metadataChanged ? "BLOCK" : "KEEP";
+        reason = metadataChanged ? "BLOCKED_STATE_REQUIRES_RECONCILIATION" : "PRESERVE_BLOCKED";
+      } else if (preserveTerminal) {
+        action = metadataChanged ? "ADVANCE" : "KEEP";
+        reason = metadataChanged ? "ALIGN_METADATA_PRESERVE_TERMINAL" : "PRESERVE_TERMINAL";
+      } else if (preserveAdvanced) {
+        action = metadataChanged ? "ADVANCE" : "KEEP";
+        reason = metadataChanged ? "ALIGN_METADATA_PRESERVE_STATUS" : "PRESERVE_ADVANCED_STATUS";
+      } else if (targetRank > currentRank && currentRank >= 0) {
+        action = "ADVANCE";
+        reason = "MONOTONIC_ADVANCE";
+      } else if (current.project_status !== target.project_status || current.issue_state !== target.issue_state) {
+        action = "BLOCK";
+        reason = "UNKNOWN_LIFECYCLE_TRANSITION";
+      } else if (metadataChanged) {
+        action = "ADVANCE";
+        reason = "ALIGN_APPROVED_METADATA";
+      }
+    }
+    operations.push({
+      operation_id: stableOperationId(repository, "item", key, target),
+      kind: "item",
+      key,
+      before: current ?? null,
+      target,
+      action,
+      reason,
+    });
+  }
+
+  for (const relation of desired_relations) {
+    const key = `${relation.kind}:${relation.from}>${relation.to}`;
+    const target = { kind: relation.kind, from: relation.from, to: relation.to };
+    const exists = existingRelations.has(key);
+    operations.push({
+      operation_id: stableOperationId(repository, "relation", key, target),
+      kind: "relation",
+      key,
+      before: exists ? target : null,
+      target,
+      action: exists ? "KEEP" : "CREATE",
+      reason: exists ? "ALREADY_DESIRED" : "MISSING",
+    });
+  }
+
+  partition.existing.sort();
+  partition.missing.sort();
+  const operationIds = new Set(operations.map((operation) => operation.operation_id));
+  const completed = new Set([...suppliedCompleted].filter((id) => operationIds.has(id)));
+  const unknownCompleted = [...suppliedCompleted].filter((id) => !operationIds.has(id)).sort();
+  const remainingOperations = operations.filter((operation) => {
+    return new Set(["CREATE", "ADVANCE", "BLOCK"]).has(operation.action) && !completed.has(operation.operation_id);
+  });
+  const blocked = operations.some((operation) => operation.action === "BLOCK") || unknownCompleted.length > 0;
+  return {
+    run_id,
+    repository,
+    status: blocked ? "BLOCKED" : (remainingOperations.length === 0 ? "COMPLETE" : "RESUMABLE"),
+    partition,
+    operations,
+    completed_operation_ids: [...completed],
+    remaining_operations: remainingOperations.map((operation) => operation.operation_id),
+    blockers: [
+      ...(operations.some((operation) => operation.action === "BLOCK")
+        ? ["Materialization contains a BLOCK operation that requires reconciliation."]
+        : []),
+      ...(unknownCompleted.length > 0
+        ? [`Completed operation IDs are not part of this journal: ${unknownCompleted.join(", ")}.`]
+        : []),
+    ],
+  };
 }
 
 function slug(value) {
@@ -118,16 +689,7 @@ function roadmapItems(roadmap) {
   })));
 }
 
-function materializationItems(contracts) {
-  const items = new Map();
-  for (const item of [...roadmapItems(contracts?.global_roadmap), ...(contracts?.phase_plan?.hierarchy ?? [])]) {
-    if (!hasText(item?.plan_item_id)) continue;
-    items.set(item.plan_item_id, { ...(items.get(item.plan_item_id) ?? {}), ...item });
-  }
-  return [...items.values()];
-}
-
-function materializationDependencies(contracts) {
+function allPlanDependencies(contracts) {
   const dependencies = [
     ...(contracts?.global_roadmap?.phases ?? []).flatMap((phase) => phase.dependencies ?? []),
     ...(contracts?.phase_plan?.dependencies ?? []),
@@ -137,6 +699,38 @@ function materializationDependencies(contracts) {
     unique.set(`${dependency?.blocking}>${dependency?.blocked}`, dependency);
   }
   return [...unique.values()];
+}
+
+function materializationItems(contracts) {
+  const allItems = new Map();
+  for (const item of [...roadmapItems(contracts?.global_roadmap), ...(contracts?.phase_plan?.hierarchy ?? [])]) {
+    if (!hasText(item?.plan_item_id)) continue;
+    allItems.set(item.plan_item_id, { ...(allItems.get(item.plan_item_id) ?? {}), ...item });
+  }
+  const items = new Map();
+  for (const item of contracts?.phase_plan?.hierarchy ?? []) {
+    if (hasText(item?.plan_item_id)) items.set(item.plan_item_id, allItems.get(item.plan_item_id) ?? item);
+  }
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const dependency of allPlanDependencies(contracts)) {
+      if (!items.has(dependency?.blocked) || items.has(dependency?.blocking)) continue;
+      const blocking = allItems.get(dependency.blocking);
+      if (blocking) {
+        items.set(dependency.blocking, blocking);
+        expanded = true;
+      }
+    }
+  }
+  return [...items.values()];
+}
+
+function materializationDependencies(contracts) {
+  const ids = new Set(materializationItems(contracts).map((item) => item.plan_item_id));
+  return allPlanDependencies(contracts).filter((dependency) => {
+    return ids.has(dependency?.blocking) && ids.has(dependency?.blocked);
+  });
 }
 
 function itemMetadataMatches(left, right) {
@@ -239,7 +833,7 @@ export function validatePlanContracts(contracts, { require_approval = true } = {
     }
   }
 
-  const dependencies = materializationDependencies(contracts);
+  const dependencies = allPlanDependencies(contracts);
   for (const dependency of dependencies) {
     if (!PLAN_ITEM_PATTERN.test(dependency?.blocking ?? "") || !byId.has(dependency.blocking)) {
       blockers.push(`Unknown dependency blocking plan_item_id: ${dependency?.blocking ?? "<unknown>"}.`);
@@ -294,8 +888,10 @@ export function evaluateOrchestratorStart(contracts, startPacket, { now = new Da
   const approvedItems = startPacket?.approved_plan_items ?? [];
   const approvedIds = approvedItems.map((item) => item.plan_item_id).sort();
   const authorization = startPacket?.authorization ?? {};
+  const lease = startPacket?.authority_lease ?? {};
 
   if (startPacket?.schema_version !== 2 || startPacket?.packet_type !== "orchestrator_start") blockers.push("Missing schema_version 2 Orchestrator Start Packet.");
+  if (!REPOSITORY_PATTERN.test(startPacket?.repository ?? "")) blockers.push("Orchestrator Start requires an exact repository.");
   if (!hasText(startPacket?.wave_id)) blockers.push("Orchestrator Start requires a stable wave_id.");
   if (startPacket?.global_roadmap_revision !== roadmap.revision
     || startPacket?.global_roadmap_digest !== roadmap.packet_digest) {
@@ -313,8 +909,32 @@ export function evaluateOrchestratorStart(contracts, startPacket, { now = new Da
   if (authorization.status !== "APPROVED" || !hasText(authorization.approved_by)) {
     blockers.push("Orchestrator Start requires a named human approval.");
   }
-  if (authorization.merge_requires_exact_sha_authorization !== true) {
-    blockers.push("Merge must remain separately gated by exact PR and head SHA authorization.");
+  if (authorization.approved_by !== lease.approved_by) {
+    blockers.push("Capability authorization and Wave Authority Lease must use the same human approval.");
+  }
+  if (!sameStringList([...(lease.plan_item_ids ?? [])].sort(), approvedIds)) {
+    blockers.push("Wave Authority Lease plan items do not match the approved Start scope.");
+  }
+  const leaseActions = startPacket?.mode === "wave_execution"
+    ? ["materialize", "create_worker"]
+    : ["materialize"];
+  for (const action of leaseActions) {
+    const leaseResult = evaluateAuthorityLease(lease, {
+      repository: startPacket?.repository,
+      plan_revision: phasePlan.revision,
+      action,
+      worker_launches: 0,
+      github_writes: 0,
+    }, { now });
+    blockers.push(...leaseResult.blockers);
+  }
+  const readyRisks = approvedItems.map((approved) => {
+    return (phasePlan.ready_wave ?? []).find((item) => item.plan_item_id === approved.plan_item_id)?.risk;
+  });
+  const exactMergeRequired = lease.profile !== "solo_fast"
+    || readyRisks.some((risk) => new Set(["Medium", "High"]).has(risk));
+  if (exactMergeRequired && authorization.merge_requires_exact_sha_authorization !== true) {
+    blockers.push("Medium/High or non-solo merge requires exact PR and head SHA authorization.");
   }
 
   if (startPacket?.mode === "materialization_only") {
@@ -353,7 +973,7 @@ export function evaluateOrchestratorStart(contracts, startPacket, { now = new Da
       && authorization.max_concurrent_write_workers <= 2
       && authorization.monitor_and_steer === true
       && authorization.archive_after_done === true
-      && authorization.create_high_risk_review_tasks === true;
+      && authorization.create_high_risk_review_tasks === readyRisks.includes("High");
     if (!workerAuthority) blockers.push("Wave execution Worker authority is incomplete or exceeds configured limits.");
   } else {
     blockers.push("Orchestrator Start mode must be materialization_only or wave_execution.");
@@ -571,26 +1191,87 @@ export function materializeApprovedPlan(contracts, ledger = {}) {
     const parent = byId.get(item.parent_plan_item_id);
     return parent ? 1 + depth(parent, new Set([...seen, item.plan_item_id])) : 1;
   };
-  const issueCreates = items
-    .filter((item) => hasText(item.plan_item_id) && !mapping[item.plan_item_id])
-    .sort((left, right) => depth(left) - depth(right));
-  const relationshipCreates = [];
+  const desiredRelations = [];
   for (const item of items) {
     if (!item.parent_plan_item_id) continue;
     const key = `parent:${item.parent_plan_item_id}>${item.plan_item_id}`;
-    if (!relationships.has(key)) relationshipCreates.push({ kind: "parent", key, parent: item.parent_plan_item_id, child: item.plan_item_id });
+    desiredRelations.push({
+      kind: "parent",
+      key,
+      from: item.parent_plan_item_id,
+      to: item.plan_item_id,
+      parent: item.parent_plan_item_id,
+      child: item.plan_item_id,
+    });
   }
   for (const dependency of dependencies) {
     const key = `dependency:${dependency.blocking}>${dependency.blocked}`;
-    if (!relationships.has(key)) relationshipCreates.push({ kind: "dependency", key, ...dependency });
+    desiredRelations.push({
+      kind: "dependency",
+      key,
+      from: dependency.blocking,
+      to: dependency.blocked,
+      ...dependency,
+    });
   }
+  const liveItems = { ...(ledger.items ?? {}) };
+  for (const item of items) {
+    if (!mapping[item.plan_item_id] || liveItems[item.plan_item_id]) continue;
+    liveItems[item.plan_item_id] = {
+      issue_url: mapping[item.plan_item_id],
+      issue_state: "OPEN",
+      project_status: item.status,
+    };
+  }
+  const journal = buildMaterializationJournal({
+    run_id: ledger.run_id ?? `materialization-${packet.revision}`,
+    repository: ledger.repository ?? "local/materialization",
+    desired_items: items.map((item) => ({
+      plan_item_id: item.plan_item_id,
+      target: {
+        issue_state: "OPEN",
+        project_status: item.status,
+        title: item.title,
+        phase: item.phase,
+        work_type: item.work_type,
+        priority: item.priority,
+        size: item.size,
+        risk: item.risk,
+        qa_required: item.qa_required,
+      },
+    })),
+    desired_relations: desiredRelations,
+    ledger: {
+      items: liveItems,
+      relations: [...relationships],
+      completed_operation_ids: ledger.completed_operation_ids ?? [],
+    },
+  });
+  const createItemIds = new Set(journal.operations
+    .filter((operation) => operation.kind === "item" && operation.action === "CREATE")
+    .map((operation) => operation.key));
+  const issueCreates = items
+    .filter((item) => createItemIds.has(item.plan_item_id))
+    .sort((left, right) => depth(left) - depth(right));
+  const createRelationKeys = new Set(journal.operations
+    .filter((operation) => operation.kind === "relation" && operation.action === "CREATE")
+    .map((operation) => operation.key));
+  const relationshipCreates = desiredRelations.filter((relation) => createRelationKeys.has(relation.key));
   return {
+    run_id: journal.run_id,
+    repository: journal.repository,
     approval_revision: packet.approval.revision,
     global_roadmap_revision: contracts.global_roadmap.revision,
     global_roadmap_digest: contracts.global_roadmap.packet_digest,
     phase_plan_digest: packet.packet_digest,
     issue_creates: issueCreates,
     relationship_creates: relationshipCreates,
+    operation_journal: journal.operations,
+    completed_operation_ids: journal.completed_operation_ids,
+    remaining_operations: journal.remaining_operations,
+    resume_state: journal.status,
+    blockers: journal.blockers,
+    partition: journal.partition,
     requires_read_after_write: true,
     agent_ready_candidates: (packet.ready_wave ?? []).map((item) => item.plan_item_id),
     materialization_mode: (packet.ready_wave ?? []).length === 0 ? "materialization_only" : "wave_execution",
@@ -636,7 +1317,8 @@ export function evaluateMaterializationReport(contracts, report) {
     return expected
       && item.observed === true
       && hasText(item.project_item_id)
-      && PROJECT_FIELDS.every((field) => item[field] === expected[field]);
+      && PROJECT_FIELDS.filter((field) => field !== "status").every((field) => item[field] === expected[field])
+      && projectStatusSatisfies(item.status, expected.status);
   });
   const projectItems = observed(validProjectRecords, (item) => item.plan_item_id);
   for (const id of expectedItems) if (!projectItems.has(id)) blockers.push(`Missing Project readback for ${id}.`);
@@ -661,6 +1343,60 @@ export function evaluateMaterializationReport(contracts, report) {
   if (!parentMapping || report.report_parent_issue_url !== parentMapping.issue_url) blockers.push("Materialization report parent Issue URL is not the mapped approved parent.");
   if (!validReportUrl(report.report_url) || !report.report_url.startsWith(`${report.report_parent_issue_url}#issuecomment-`)) {
     blockers.push("Materialization report URL is not a durable comment on the approved parent Issue.");
+  }
+  if (!hasText(report.run_id)) blockers.push("Materialization report requires a durable run_id.");
+  if (!REPOSITORY_PATTERN.test(report.repository ?? "")) blockers.push("Materialization report requires an exact repository.");
+  const journal = report.operation_journal ?? [];
+  const operationIds = journal.map((operation) => operation?.operation_id);
+  if (journal.length === 0
+    || operationIds.some((id) => !DIGEST_PATTERN.test(id ?? ""))
+    || new Set(operationIds).size !== operationIds.length) {
+    blockers.push("Materialization operation journal is missing or contains invalid or duplicate operation IDs.");
+  }
+  const expectedOperationKeys = new Set([
+    ...items.map((item) => `item:${item.plan_item_id}`),
+    ...(packet.hierarchy ?? [])
+      .filter((item) => item.parent_plan_item_id && itemById.has(item.parent_plan_item_id))
+      .map((item) => `relation:parent:${item.parent_plan_item_id}>${item.plan_item_id}`),
+    ...materializationDependencies(contracts)
+      .map((item) => `relation:dependency:${item.blocking}>${item.blocked}`),
+  ]);
+  const actualOperationKeys = new Set(journal.map((operation) => `${operation.kind}:${operation.key}`));
+  for (const key of expectedOperationKeys) if (!actualOperationKeys.has(key)) blockers.push(`Missing materialization operation ${key}.`);
+  for (const operation of journal) {
+    const expectedOperationId = stableOperationId(report.repository, operation?.kind, operation?.key, operation?.target);
+    if (!new Set(["CREATE", "KEEP", "ADVANCE", "BLOCK"]).has(operation?.action)
+      || !hasText(operation?.key)
+      || !operation?.target
+      || (report.status === "PASS" && !operation?.after)) {
+      blockers.push(`Materialization operation ${operation?.key ?? "<unknown>"} lacks full lifecycle evidence.`);
+    }
+    if (operation?.operation_id !== expectedOperationId) {
+      blockers.push(`Materialization operation ${operation?.key ?? "<unknown>"} has a non-stable operation ID.`);
+    }
+  }
+  const completedIds = new Set(report.completed_operation_ids ?? []);
+  const remainingIds = new Set(report.remaining_operations ?? []);
+  if ([...completedIds, ...remainingIds].some((id) => !DIGEST_PATTERN.test(id ?? ""))) {
+    blockers.push("Materialization resume sets contain invalid operation IDs.");
+  }
+  const operationIdSet = new Set(operationIds);
+  if ([...completedIds, ...remainingIds].some((id) => !operationIdSet.has(id))) {
+    blockers.push("Materialization resume sets reference operation IDs outside the journal.");
+  }
+  const mutatingIds = new Set(journal
+    .filter((operation) => new Set(["CREATE", "ADVANCE", "BLOCK"]).has(operation.action))
+    .map((operation) => operation.operation_id));
+  const expectedRemainingIds = new Set([...mutatingIds].filter((id) => !completedIds.has(id)));
+  if (!sameStringList([...remainingIds].sort(), [...expectedRemainingIds].sort())) {
+    blockers.push("Materialization remaining operations do not match the uncompleted journal.");
+  }
+  if (report.status === "PASS"
+    && (report.resume_state !== "COMPLETE" || remainingIds.size > 0
+      || journal.some((operation) => operation.action === "BLOCK")
+      || journal.some((operation) => new Set(["CREATE", "ADVANCE"]).has(operation.action)
+        && !completedIds.has(operation.operation_id)))) {
+    blockers.push("PASS materialization must have a complete journal with no remaining writes.");
   }
   if (report.status !== "PASS") blockers.push("Materialization did not PASS.", ...(report.blockers ?? []));
   return { valid: blockers.length === 0, blockers: [...new Set(blockers)] };
@@ -728,7 +1464,7 @@ export function evaluateClaimStaleness({ task_found, missed_heartbeats = 0, bran
   return { stale, action: stale ? "RELEASE_AND_REQUEUE" : "KEEP_CLAIM" };
 }
 
-export function evaluateReviewTopology({ worker_id, agents = [] }) {
+export function evaluateReviewTopology({ worker_id, agents = [], profile = "team_safe", risk = "Medium" }) {
   const reasons = [];
   const active = agents.filter((agent) => agent.active === true);
   if (active.length > 2) reasons.push("A Worker may keep at most two active direct subagents.");
@@ -736,7 +1472,12 @@ export function evaluateReviewTopology({ worker_id, agents = [] }) {
   if (agents.some((agent) => agent.tracked_writes === true)) reasons.push("Review and QA agents must not create tracked changes.");
   const identities = [worker_id, ...agents.map((agent) => agent.id)].filter(hasText);
   if (new Set(identities).size !== identities.length) reasons.push("Worker, reviewer, QA, and admission identities must be distinct.");
-  const requiredRoles = ["reviewer", "qa", "admission-reviewer"];
+  let requiredRoles = [];
+  try {
+    requiredRoles = reviewTopologyForRisk({ profile, risk }).reviewers;
+  } catch (error) {
+    reasons.push(error.message);
+  }
   for (const role of requiredRoles) {
     if (!agents.some((agent) => agent.role === role)) reasons.push(`Missing ${role}.`);
   }
@@ -784,6 +1525,7 @@ function collectAdmissionBlockers(evidence) {
 
   const requiredEvidenceFields = [
     "schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha",
+    "automation_profile",
     "qa_tracked_worktree", "gate_tracked_worktree", "acceptance", "tdd",
     "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates",
   ];
@@ -808,6 +1550,11 @@ function collectAdmissionBlockers(evidence) {
     "Admission evidence does not satisfy the required packet shape for schema v2.",
   );
   requirePass(/^[0-9a-f]{40}$/.test(evidence.commit_sha ?? "") && evidence.commit_sha === evidence.current_sha, "Admission report is not bound to the full current commit SHA.");
+  requirePass(Boolean(AUTOMATION_PROFILES[evidence.automation_profile]), "Admission evidence has an unknown automation profile.");
+  requirePass(
+    !evidence.configured_automation_profile || evidence.automation_profile === evidence.configured_automation_profile,
+    "Admission automation profile does not match authoritative configuration.",
+  );
   requirePass(
     /^[0-9a-f]{40}$/.test(evidence.base_sha_at_launch ?? "")
       && /^[0-9a-f]{40}$/.test(evidence.validated_base_sha ?? "")
@@ -922,20 +1669,29 @@ function collectAdmissionBlockers(evidence) {
   requirePass(validationPassed(evidence.local_validation?.full, evidence.current_sha, evidence.configured_validation?.full), "Full local validation does not contain the exact configured commands and successful results for this SHA.");
   requirePass(validationPassed(evidence.local_validation?.integration, evidence.current_sha, evidence.configured_validation?.integration), "Integration validation does not contain the exact configured commands and successful results for this SHA.");
 
+  const combinedLowRisk = issueAdmission
+    && evidence.automation_profile !== "regulated"
+    && subject?.risk === "Low"
+    && (subject?.high_risk_flags ?? []).length === 0;
+  const reviewerQaPass = reviewPassed(evidence.reviews?.reviewer_qa, evidence.current_sha, executionSource);
   const reviewerPass = reviewPassed(evidence.reviews?.reviewer, evidence.current_sha, executionSource);
   const qaPass = reviewPassed(evidence.reviews?.qa, evidence.current_sha, executionSource);
   const admissionPass = reviewPassed(evidence.reviews?.admission, evidence.current_sha, executionSource);
-  requirePass(reviewerPass, "Independent reviewer lacks a distinct identity, exact SHA, or traceable PASS evidence.");
-  requirePass(qaPass, "Independent QA lacks a distinct identity, exact SHA, or traceable PASS evidence.");
-  requirePass(admissionPass, "Admission reviewer lacks a distinct identity, exact SHA, or traceable PASS evidence.");
-  requirePass(!reviewerPass || !qaPass || evidence.reviews.reviewer.source.id !== evidence.reviews.qa.source.id, "Reviewer and QA must be distinct evidence sources.");
-  requirePass(
-    !admissionPass
-      || !reviewerPass
-      || !qaPass
-      || !new Set([evidence.reviews.reviewer.source.id, evidence.reviews.qa.source.id]).has(evidence.reviews.admission.source.id),
-    "Admission reviewer must be distinct from Worker, reviewer, and QA.",
-  );
+  if (combinedLowRisk) {
+    requirePass(reviewerQaPass, "Low-risk admission requires one independent combined reviewer/QA evidence source.");
+  } else {
+    requirePass(reviewerPass, "Independent reviewer lacks a distinct identity, exact SHA, or traceable PASS evidence.");
+    requirePass(qaPass, "Independent QA lacks a distinct identity, exact SHA, or traceable PASS evidence.");
+    requirePass(admissionPass, "Admission reviewer lacks a distinct identity, exact SHA, or traceable PASS evidence.");
+    requirePass(!reviewerPass || !qaPass || evidence.reviews.reviewer.source.id !== evidence.reviews.qa.source.id, "Reviewer and QA must be distinct evidence sources.");
+    requirePass(
+      !admissionPass
+        || !reviewerPass
+        || !qaPass
+        || !new Set([evidence.reviews.reviewer.source.id, evidence.reviews.qa.source.id]).has(evidence.reviews.admission.source.id),
+      "Admission reviewer must be distinct from Worker, reviewer, and QA.",
+    );
+  }
   requirePass(conditionalReviewPassed(evidence.reviews?.design, evidence.current_sha, executionSource), "Design review is required and lacks independent evidence, or NOT_REQUIRED lacks a reason.");
   requirePass(conditionalReviewPassed(evidence.reviews?.security, evidence.current_sha, executionSource), "Security review is required and lacks independent evidence, or NOT_REQUIRED lacks a reason.");
   const highRisk = !riskMetadataValid || subject?.risk === "High"
@@ -1046,27 +1802,63 @@ export function postPrRecovery({ pr, signal }) {
   };
 }
 
-export function orchestratorControl({ queue_length, awaiting_human, launches }) {
+export function orchestratorControl({
+  queue_length,
+  awaiting_human,
+  launches,
+  materialization_status = "COMPLETE",
+  lease_valid = true,
+}) {
+  let nextAction = "DRAIN_WAVE";
+  if (launches >= 5) nextAction = "HANDOFF";
+  else if (awaiting_human) nextAction = "WAIT_HUMAN";
+  else if (lease_valid !== true) nextAction = "BLOCK_AUTHORITY";
+  else if (materialization_status === "BLOCKED") nextAction = "RECONCILE_MATERIALIZATION";
+  else if (materialization_status === "RESUMABLE") nextAction = "RESUME_MATERIALIZATION";
+  else if (materialization_status !== "COMPLETE") nextAction = "BLOCK_MATERIALIZATION_STATE";
+  else if (queue_length > 0) nextAction = launches === 0 ? "LAUNCH_FIRST_WORKER" : "LAUNCH_NEXT_WORKER";
   return {
     heartbeat: queue_length > 0 && !awaiting_human ? "ACTIVE" : "PAUSE",
     handoff: launches >= 5 ? "REQUIRED" : "NOT_REQUIRED",
+    next_action: nextAction,
   };
 }
 
-export function evaluateMerge({ now, authorization = {}, pr = {}, admission = {}, current_base_sha, unresolved_dependencies = [] }) {
+export function evaluateMerge({
+  now,
+  profile = "team_safe",
+  risk = "Medium",
+  repository_allows_auto_merge = false,
+  high_risk_flags = null,
+  authorization = {},
+  pr = {},
+  admission = {},
+  current_base_sha,
+  unresolved_dependencies = [],
+}) {
   const blockers = [];
   const requirePass = (condition, message) => {
     if (!condition) blockers.push(message);
   };
-  requirePass(authorization.status === "APPROVED", "Human merge authorization is missing.");
-  requirePass(hasText(authorization.human_identity), "Human merge authorization lacks a named identity.");
-  requirePass(validRunUrl(authorization.admission_report_url) || /^https:\/\/[^/]+\/.+/.test(authorization.admission_report_url ?? ""), "Human merge authorization lacks an admission report URL.");
-  requirePass(hasText(authorization.repository) && authorization.repository === pr.repository, "Human authorization is not bound to this repository.");
-  requirePass(Number.isInteger(authorization.pr) && authorization.pr === pr.number, "Human authorization is not bound to this PR.");
-  requirePass(hasText(authorization.head_sha) && authorization.head_sha === pr.head_sha, "Human authorization is not bound to the exact head SHA.");
-  requirePass(/^[0-9a-f]{40}$/.test(authorization.base_sha ?? "") && authorization.base_sha === current_base_sha, "Human authorization is not bound to the current base SHA.");
-  requirePass(/^[0-9a-f]{64}$/.test(authorization.admission_report_digest ?? "") && authorization.admission_report_digest === admission.report_digest, "Human authorization is not bound to the exact admission report digest.");
-  requirePass(hasText(authorization.valid_until) && hasText(now) && Date.parse(authorization.valid_until) > Date.parse(now), "Human merge authorization is missing, invalid, or expired.");
+  const automaticLowRisk = profile === "solo_fast"
+    && risk === "Low"
+    && repository_allows_auto_merge === true
+    && Array.isArray(high_risk_flags)
+    && high_risk_flags.length === 0;
+  const mergeMode = automaticLowRisk ? "AUTOMATIC_LOW_RISK" : "HUMAN_AUTHORIZATION";
+  requirePass(Boolean(AUTOMATION_PROFILES[profile]), "Merge profile is unknown.");
+  requirePass(new Set(["Low", "Medium", "High"]).has(risk), "Merge risk is unknown.");
+  if (!automaticLowRisk) {
+    requirePass(authorization.status === "APPROVED", "Human merge authorization is missing.");
+    requirePass(hasText(authorization.human_identity), "Human merge authorization lacks a named identity.");
+    requirePass(validRunUrl(authorization.admission_report_url) || /^https:\/\/[^/]+\/.+/.test(authorization.admission_report_url ?? ""), "Human merge authorization lacks an admission report URL.");
+    requirePass(hasText(authorization.repository) && authorization.repository === pr.repository, "Human authorization is not bound to this repository.");
+    requirePass(Number.isInteger(authorization.pr) && authorization.pr === pr.number, "Human authorization is not bound to this PR.");
+    requirePass(hasText(authorization.head_sha) && authorization.head_sha === pr.head_sha, "Human authorization is not bound to the exact head SHA.");
+    requirePass(/^[0-9a-f]{40}$/.test(authorization.base_sha ?? "") && authorization.base_sha === current_base_sha, "Human authorization is not bound to the current base SHA.");
+    requirePass(/^[0-9a-f]{64}$/.test(authorization.admission_report_digest ?? "") && authorization.admission_report_digest === admission.report_digest, "Human authorization is not bound to the exact admission report digest.");
+    requirePass(hasText(authorization.valid_until) && hasText(now) && Date.parse(authorization.valid_until) > Date.parse(now), "Human merge authorization is missing, invalid, or expired.");
+  }
   requirePass(admission.status === "PASS" && admission.commit_sha === pr.head_sha && hasText(admission.source_id) && /^[0-9a-f]{64}$/.test(admission.report_digest ?? ""), "Fresh independent admission PASS is missing for the PR head SHA.");
   requirePass(admission.base_sha === current_base_sha, "The base branch advanced; synchronize and repeat CI, review, QA, admission, and human approval.");
   requirePass(pr.checks === "PASS", "Required PR checks are not passing.");
@@ -1075,6 +1867,7 @@ export function evaluateMerge({ now, authorization = {}, pr = {}, admission = {}
   return {
     authorize_merge: blockers.length === 0,
     expected_head_sha: blockers.length === 0 ? pr.head_sha : null,
+    merge_mode: mergeMode,
     blockers,
   };
 }

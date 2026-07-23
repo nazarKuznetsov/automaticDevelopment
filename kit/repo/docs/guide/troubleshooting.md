@@ -9,9 +9,17 @@ slug: troubleshooting
 
 ## Materialization stopped before GitHub writes
 
-This is the correct fail-closed result when either packet lacks an exact title/Project field, contains an unknown typed dependency, selects no valid report parent, has a stale digest/approval, or the Start Packet mode/authority does not match the Ready wave. Do not fill gaps in the Orchestrator chat and do not partially create Issues. Upgrade the managed kit files, run a fresh read-only Planner in Repair mode, validate the complete replacement packets locally, obtain exact revision/digest approval, then start a new Orchestrator task.
+This is correct when packet semantics or lease scope are invalid. If the failure is technical after writes, do not return to Planning: read the durable journal and resume only `remaining_operations`. Reapprove only when product scope/revision/risk or lease bounds changed.
 
-An empty Ready wave is not itself a blocker. Use `materialization_only`, approve the complete materialization item set, grant zero Worker authority, and expect an empty `agent_ready_readback`.
+An empty Ready wave is not itself a blocker. Use `materialization_only` for the current horizon, grant zero Worker authority, and expect an empty `agent_ready_readback`.
+
+## Worker wants to modify the kit source or wrong repository
+
+Compare lock v3 target/source, Git remote, host config, Worker Packet, and raw Issue repository. Any target mismatch blocks before writes. Managed touch points return `SOURCE_REPAIR_REQUIRED`; route the fingerprinted maintenance packet to `kit.source_repository`. Never update target lock hashes manually or commit a managed override.
+
+## Materialization retry wants to reopen or downgrade an Issue
+
+Stop the operation. The journal must return `KEEP` with `PRESERVE_CLOSED` or `PRESERVE_ADVANCED_STATUS`. Refresh live state, preserve completed operation IDs, and rebuild remaining operations. A plan target is a minimum desired state, not authority to reverse a newer lifecycle state.
 
 ## GitHub authentication cannot mutate or read the Project
 
@@ -60,6 +68,10 @@ Prove it on the base revision, link a separate open Bug Issue, and show the curr
 ## Installer reports `MERGE REQUIRED`
 
 No files were written. For a host-owned path, review the printed kit and host versions, preserve the verified repository values, and rerun with `--accept-host <path>`. For a formerly customized managed path whose generic behavior now exists in core, review the new managed source and use upgrade-only `--force` to retire the override. Never use `--force` for host-owned files or keep repository-specific text in a managed file.
+
+## Installer reports source/target identity or dirty-source failure
+
+Run from a clean Git checkout with a GitHub origin and exact commit. Confirm `Kit source` and `Installation target` are different intended repositories. On upgrade, lock target, remote, and non-empty host config must match. Do not bypass by editing lock provenance or copying `.git`.
 
 ## No task/worktree tools
 

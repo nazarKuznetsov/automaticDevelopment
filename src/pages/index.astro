@@ -19,9 +19,9 @@ const docs = [
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Lifecycle-driven Codex development with fresh managed-worktree tasks, GitHub rolling waves, exact-SHA admission and human-authorized merges." />
+    <meta name="description" content="Lifecycle-driven Codex development with repository-safe installation, durable wave authority, resumable GitHub materialization, and risk-tiered admission." />
     <meta name="theme-color" content="#0b0f17" />
-    <title>Codex Automation Guide v2</title>
+    <title>Codex Automation Guide v2.1</title>
   </head>
   <body>
     <header class="site-header">
@@ -40,7 +40,7 @@ const docs = [
         <div class="hero-copy">
           <p class="eyebrow">Lifecycle-driven development</p>
           <h1>Plan globally. Give every accepted Issue a fresh execution context.</h1>
-          <p class="lede">A GitHub-native kit for stable Issue plans, one Orchestrator per wave, one managed-worktree Worker task per leaf, independent admission, exact-SHA human authorization, and post-merge proof.</p>
+          <p class="lede">A GitHub-native kit for stable Issue plans, explicit source/target identity, one durable authority lease per wave, resumable materialization, risk-tiered review, and post-merge proof.</p>
           <div class="actions">
             <a class="button primary" href={`${base}docs/quickstart/`}>Start Quickstart</a>
             <a class="button secondary" href={repoUrl}>View repository</a>
@@ -62,8 +62,8 @@ const docs = [
       <section class="section lifecycle-section">
         <div class="section-heading">
           <p class="eyebrow">One lifecycle</p>
-          <h2>Automation expands only after the exact contract is approved.</h2>
-          <p>Humans approve the brief, wave revision, phase boundaries, high-risk choices, and exact PR/head SHA. Agents execute and reconcile ordinary approved work, then stop fail-closed when evidence changes.</p>
+          <h2>Approve product scope once; resume technical execution safely.</h2>
+          <p>Humans approve the brief, wave revision, phase boundaries, and high-risk choices. Agents execute routine GitHub operations under a durable lease, preserve newer state, and stop fail-closed only when scope, identity, risk, or authority changes.</p>
         </div>
         <ol class="phase-track">
           {phases.map((phase, index) => <li><span>{String(index + 1).padStart(2, "0")}</span><strong>{phase}</strong></li>)}
@@ -78,7 +78,7 @@ const docs = [
           <a class="text-link" href={`${base}docs/quickstart/`}>Read the complete setup →</a>
         </div>
         <div class="code-card">
-          <div class="code-title">Install workflow v2</div>
+          <div class="code-title">Install kit v2.1</div>
           <pre><code>scripts/install-kit.sh --target /path/to/repo --dry-run
 scripts/install-kit.sh --target /path/to/repo --apply
 

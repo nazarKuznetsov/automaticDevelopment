@@ -1,6 +1,6 @@
-# Codex Automation Guide v2
+# Codex Automation Guide v2.1
 
-Lifecycle-driven, GitHub-native development for Codex: Canonical Brief → global roadmap → design gate → approved wave → fresh top-level TDD Workers → independent head/remote-base admission → repository/PR/head/base/digest-bound human authorization → Orchestrator merge → merge-commit-bound post-merge Done.
+Lifecycle-driven, GitHub-native development for Codex: Canonical Brief → approved roadmap → one Wave Authority Lease → monotonic/resumable execution horizon → ownership-routed Workers → risk-tiered admission and merge → merge-commit-bound Done.
 
 - Published guide: <https://nazarkuznetsov.github.io/automaticDevelopment/>
 - Installable kit: `kit/repo/`
@@ -39,12 +39,12 @@ For an installed v2 kit:
 scripts/install-kit.sh --target /path/to/target-repo --upgrade
 ```
 
-The installer uses `kit/manifest.json` and `.codex/kit-lock.json`. It never blindly overwrites host-owned `AGENTS.md`, templates, workflows, product contracts, workflow configuration, or the project runbook; reviewed host files require an explicit path-scoped `--accept-host`. Generic bootstrap, Canonical publication, and exact-target PR admission stay managed by the kit, so repository values do not require managed-file overrides. See [INSTALL.md](INSTALL.md).
+The installer uses `kit/manifest.json` and a provenance-bound `.codex/kit-lock.json` v3. It records the exact kit source repository/commit separately from the installation target, rejects dirty source content and target identity drift, and never copies Git metadata. Host-owned files require an explicit path-scoped `--accept-host`; managed changes route back to the recorded kit source instead of becoming target overrides. See [INSTALL.md](INSTALL.md).
 
 Repositories that already used workflow v1 should follow the canonical [Existing Products migration](kit/repo/docs/guide/existing-products.md): preserve the current Project/history, reconcile contracts and baseline, then continue from the evidence-backed phase instead of repeating bootstrap.
 
 ## Scope
 
-The kit uses one fresh Orchestrator task per wave and one fresh top-level managed-worktree Worker task per Ready leaf Issue. It uses native GitHub Issues, Project v2, Actions, PRs, sub-issues, and dependencies, with at most two Workers only on disjoint conflict keys. It adds no hosted controller, database, webhook service, required Figma integration, or pinned model slug. Scheduled local heartbeats require the Codex desktop app and an available checkout.
+The kit uses one fresh Orchestrator task per wave and one fresh top-level managed-worktree Worker task per Ready leaf Issue. Only the current execution horizon is materialized. `solo_fast`, `team_safe`, and `regulated` profiles keep human gates proportional to risk while one durable authority lease covers routine scoped GitHub writes and retries. The kit adds no hosted controller, database, webhook service, required Figma integration, or pinned model slug.
 
 No live GitHub pilot, Issue, branch, or PR is created by repository tests. The dogfood pilot requires a separate human approval.

@@ -18,6 +18,8 @@ Do not pin model slugs. Use high reasoning for Planner, but treat model availabi
 - The next phase has draft Capabilities/dependencies.
 - Later phases remain roadmap-level until evidence improves.
 
+Approval of the roadmap does not materialize the whole roadmap. The GitHub execution horizon contains at most five Ready leaves, their minimum parent chain, upstream blocking dependencies, and one report parent. Future approved items remain versioned plan data until a later wave.
+
 Use at most `Epic → Capability/Module → Deliverable → Task/Bug`. Only native leaf status permits execution. L/XL work is decomposed before `agent-ready`.
 
 ## Stable IDs and merge units
@@ -31,7 +33,7 @@ Every Ready candidate must define:
 - one owner layer, conservative `conflict_keys`, and expected touch points;
 - native dependencies and integration order;
 - exact targeted, full, and integration validation;
-- reviewer, QA, admission-reviewer, and conditional design/security/high-risk review;
+- risk and profile-appropriate review topology; non-regulated Low does not require three separate review tasks;
 - human gates and explicit out-of-scope.
 
 The Ready leaf must also appear in the Phase Plan hierarchy with its `parent_plan_item_id`, and every native blocker must be observed resolved. A leaf listed only in `ready_wave`, or still blocked, is invalid and must not receive `agent-ready`.
@@ -42,7 +44,7 @@ Two candidates that share an unstable owner surface are serialized. Worktrees is
 
 Planner returns complete strict-JSON Global Roadmap and Phase Plan packets. Both carry a revision and a deterministic SHA-256 digest computed by `.codex/scripts/workflow-contract.mjs`; approval binds the exact revisions, digests, named human, and current phase. Before requesting approval, Planner must run `validatePlanContracts(contracts, { require_approval: false })`. A validator failure is a planning failure, not a field for Orchestrator to guess.
 
-Human approval authorizes Orchestrator to reproduce the approved content exactly; it does not authorize scope repair. The Orchestrator Start Packet names approved `plan_item_id` values before Issue numbers exist. Materialization order is Issues top-down, native sub-issues, native dependencies, Project items/fields, read-after-write, stable-ID mapping, durable report comment, then `agent-ready` only for a non-empty approved Ready wave. PASS requires exact mapping and Project field readback for every item plus exact hierarchy/dependency/Ready readback where those sets are non-empty. If native relationship mutation is unavailable, stop with Human Action Required; a comment is not a fallback relationship.
+Human approval is stored once as a Wave Authority Lease. The Start Packet names plan IDs before Issue numbers exist; the lease uses plan IDs and later records created Issue IDs without changing scope. Materialization is monotonic: `CREATE`, `KEEP`, `ADVANCE`, or `BLOCK`; never reopen, downgrade, delete a relation, or duplicate a completed operation. PASS requires complete readback and an empty remaining-operation set. A technical failure is resumable and does not request a new roadmap approval.
 
 If an approved packet is incomplete or fails the current schema, do not patch it in the Orchestrator chat. Run a fresh read-only Planner in Repair mode, preserve accepted outcomes and stable IDs, issue new revisions/digests, validate them, and request a new exact approval.
 

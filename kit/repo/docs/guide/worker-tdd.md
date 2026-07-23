@@ -30,20 +30,19 @@ Docs/config work may use an exemption only when runtime behavior is unchanged an
 
 ## Fresh, bounded validation agents
 
-For Low/Medium work, the Worker may use direct depth-one subagents, at most two active simultaneously:
+Review topology comes from the configured profile and risk tier. Direct depth-one validation agents remain bounded to at most two active simultaneously:
 
-- fresh read-only reviewer;
-- fresh non-authoring QA;
-- fresh distinct admission-reviewer using `$github-pre-pr-reviewer`;
+- non-regulated Low: one fresh non-authoring combined reviewer/QA, then deterministic admission;
+- Medium or stricter profiles: fresh read-only reviewer, fresh non-authoring QA, and a distinct admission-reviewer using `$github-pre-pr-reviewer`;
 - conditional design/security reviewers.
 
-Give them raw Issue, Worker Packet, diff, exact SHA, CI evidence, and relevant source—not Worker conclusions or full Orchestrator history. Worker, reviewer, QA, and admission IDs must differ. High/security/auth/data/migration review is a separate top-level task created by Orchestrator and remains human-gated.
+Give them raw Issue, Worker Packet, profile/risk, diff, exact SHA, CI evidence, and relevant source—not Worker conclusions or full Orchestrator history. Every required independent identity must differ from the Worker and from the other required roles. High/security/auth/data/migration review is a separate top-level task created by Orchestrator and remains human-gated.
 
 ## Freshness and PR
 
 Every commit invalidates review, QA, branch CI, admission, and merge authorization. Keep `base_sha_at_launch` as immutable provenance. Before PR, compare the authoritative remote default branch with `validated_base_sha` (initially the launch SHA); if it advanced, synchronize, record the new validated base, and repeat all evidence. Preserve QA before/after tracked-tree evidence separately; the deterministic gate adds its own before/after evidence and must not overwrite QA findings.
 
-Admission agent authors the independent evidence. Worker passes it unchanged to the deterministic gate, which reruns configured commands and checks actual base/tree state. Only exact-SHA PASS permits one PR.
+The profile-required independent reviewer path authors the evidence. Worker passes it unchanged to the deterministic gate, which reruns configured commands and checks actual base/tree state. Only exact-SHA PASS permits one PR.
 
 Requested changes or post-PR failures return the same PR to Draft and the Issue to In Progress. Continue in the same Worker task, branch, and PR. The task remains available until Orchestrator confirms merge, green post-merge CI, Done, and archive.
 

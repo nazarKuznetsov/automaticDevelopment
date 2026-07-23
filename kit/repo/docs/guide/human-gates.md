@@ -7,13 +7,13 @@ slug: human-gates
 
 # Human gates
 
-Humans approve the Canonical Brief revision, global roadmap/Phase Plan revision, wave/phase entry and exit, high-risk/security/auth/data/migration/legal/billing/destructive/product decisions, deploy/release, and every exact PR/head SHA merge.
+Humans approve the Canonical Brief, roadmap/Phase Plan, one Wave Authority Lease, phase exit, high-risk/security/auth/data/migration/legal/billing/destructive/product decisions, and deploy/release. Exact PR/head merge approval is required for Medium/High and profiles that disable Low-risk auto-merge.
 
-Low/Medium XS–M leaves inside an approved wave run autonomously when the contract is complete. Human approval does not broaden tool permissions or product scope.
+Routine Issue/Project/relation writes, Worker launches, comments, lifecycle updates, retries, and task replacement run under the unchanged lease. Ask again only when repository, revision, plan/Issue scope, allowed actions, risk, budget, expiry, or product decision changes.
 
 ## Merge ownership
 
-Automatic Low-risk merge is disabled. Human reviews the exact repository, PR, head SHA, current base SHA, and immutable admission report digest, then publishes a Merge Authorization Packet. Orchestrator—not the Worker—re-reads SHA/base/checks/dependencies/threads/admission, merges with `expected_head_sha`, verifies merge, and waits for post-merge CI. Any head/base/admission change cancels authorization.
+Non-regulated Low-risk review uses one combined reviewer/QA plus deterministic admission. In `solo_fast`, that Low-risk work merges automatically after checks, dependencies, threads, and repository policy pass. `team_safe`, `regulated`, Medium, and High require the human to publish a Merge Authorization Packet. Orchestrator—not Worker—executes and verifies every merge.
 
 Several PRs may be authorized together only when every PR and exact SHA is listed and conflict keys are disjoint.
 

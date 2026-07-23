@@ -1,11 +1,11 @@
 ---
 name: github-pre-pr-reviewer
-description: Independently audit one exact commit as a distinct admission-reviewer for a leaf Issue, configured one-time bootstrap, or configured Canonical Brief publication. Verify the single admission subject, exact repository/head/base target, raw evidence, diff, SHA/base freshness, clean tracked tree, TDD, validation, independent reviews, branch CI, dependencies, baseline, documentation, rollout, and human gates. Use only in a fresh non-authoring admission agent before PR creation or after any SHA/base/config change; never implement, create a PR, or reuse another role identity.
+description: Audit exact-SHA admission when the configured profile/risk calls for a distinct admission reviewer. Non-regulated Low-risk work uses deterministic admission with one combined reviewer/QA and does not create this extra task; Medium/High and regulated flows retain independent admission evidence.
 ---
 
 # GitHub Pre-PR Reviewer
 
-Act as the distinct admission-reviewer. Read [references/admission-report.md](references/admission-report.md), the single raw admission subject, exact diff/SHA, authoritative default-branch configuration, CI evidence, and raw reviewer/QA/specialist outputs. For Issue work, also read the raw Issue and Worker Packet. Do not accept the executor's conclusion.
+Act only when `reviewTopologyForRisk` requires a distinct admission-reviewer. Read [references/admission-report.md](references/admission-report.md), the single raw admission subject, automation profile, exact diff/SHA, authoritative configuration, CI evidence, and raw reviewer/QA/specialist outputs. Do not accept the executor's conclusion.
 
 ## Audit
 

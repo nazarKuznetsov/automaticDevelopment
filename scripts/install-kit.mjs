@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -55,6 +57,58 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function git(root, ...args) {
+  return execFileSync("git", ["-C", root, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+function tryGit(root, ...args) {
+  try {
+    return git(root, ...args);
+  } catch {
+    return "";
+  }
+}
+
+function normalizeGitHubRepository(remoteUrl) {
+  const value = String(remoteUrl ?? "").trim();
+  const https = value.match(/^https:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/i);
+  if (https) return https[1];
+  const ssh = value.match(/^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/i);
+  if (ssh) return ssh[1];
+  const sshUrl = value.match(/^ssh:\/\/git@github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/i);
+  if (sshUrl) return sshUrl[1];
+  return "";
+}
+
+function unsafeManifestPath(path) {
+  const normalized = String(path ?? "").replaceAll("\\", "/").replace(/^\.\//, "");
+  const segments = normalized.split("/");
+  const localCodexMetadata = /^\.codex\/(?:(?:tasks|threads|sessions|worktrees|projects)(?:\/|$)|(?:task|thread|session|worktree|project)(?:-id)?\.json$)/.test(normalized);
+  return !normalized
+    || isAbsolute(normalized)
+    || segments.includes("..")
+    || segments.includes(".git")
+    || segments.includes(".gitmodules")
+    || normalized.startsWith(".codex/tasks/")
+    || normalized.startsWith(".codex/worktrees/")
+    || localCodexMetadata;
+}
+
+function defaultBranch(root) {
+  const remoteHead = tryGit(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD");
+  if (remoteHead.startsWith("origin/")) return remoteHead.slice("origin/".length);
+  for (const candidate of ["main", "master"]) {
+    if (tryGit(root, "show-ref", "--verify", `refs/heads/${candidate}`)
+      || tryGit(root, "show-ref", "--verify", `refs/remotes/origin/${candidate}`)) return candidate;
+  }
+  const current = tryGit(root, "symbolic-ref", "--quiet", "--short", "HEAD");
+  if (current && !current.startsWith("agent/") && !current.startsWith("feature/")) return current;
+  return "";
+}
+
 function fail(message) {
   console.error(message);
   process.exit(1);
@@ -87,12 +141,82 @@ if (!existsSync(targetRoot) || !statSync(targetRoot).isDirectory()) fail(`Target
 if (!existsSync(join(targetRoot, ".git"))) fail(`Target does not look like a git repository root: ${targetRoot}`);
 
 const manifest = readJson(manifestPath);
+if (manifest.schema_version !== 2 || manifest.kit_version !== "2.1.0") {
+  fail("Kit manifest must declare workflow schema 2 and kit version 2.1.0.");
+}
+if (!Array.isArray(manifest.files) || manifest.files.length === 0) fail("Kit manifest has no files.");
+const manifestPaths = manifest.files.map((entry) => entry.path);
+if (new Set(manifestPaths).size !== manifestPaths.length) fail("Kit manifest contains duplicate paths.");
+if (manifest.files.some((entry) => !new Set(["managed", "host", "generated"]).has(entry.ownership))) {
+  fail("Kit manifest contains an invalid ownership class.");
+}
+if (manifest.files.some((entry) => unsafeManifestPath(entry.path))) {
+  fail("Kit manifest contains Git metadata, local Codex metadata, or an unsafe path.");
+}
+
+const sourceRoot = tryGit(repoRoot, "rev-parse", "--show-toplevel");
+if (resolve(sourceRoot) !== repoRoot) fail("Installer must run from a verified Git checkout of the Automation Kit.");
+const sourceOriginUrl = tryGit(repoRoot, "remote", "get-url", "origin");
+const sourceRepository = normalizeGitHubRepository(sourceOriginUrl);
+const sourceCommit = tryGit(repoRoot, "rev-parse", "HEAD");
+if (!sourceRepository || !/^[0-9a-f]{40}$/.test(sourceCommit)) {
+  fail("Kit source requires a GitHub origin and exact source commit.");
+}
+const sourceDirty = tryGit(repoRoot, "status", "--porcelain", "--", "kit/manifest.json", "kit/repo", "scripts/install-kit.mjs", "scripts/install-kit.sh");
+if (sourceDirty) fail(`Kit source has uncommitted manifest changes:\n${sourceDirty}`);
+
+const resolvedTargetRoot = tryGit(targetRoot, "rev-parse", "--show-toplevel");
+if (!resolvedTargetRoot || realpathSync(resolvedTargetRoot) !== realpathSync(targetRoot)) {
+  fail(`Target must be the exact Git repository or worktree root: ${targetRoot}`);
+}
+const targetOriginUrl = tryGit(targetRoot, "remote", "get-url", "origin");
+const targetRepository = normalizeGitHubRepository(targetOriginUrl);
+const targetDefaultBranch = defaultBranch(targetRoot);
+if (!targetRepository || !targetDefaultBranch) {
+  fail("Installation target requires a GitHub origin and an observable default branch.");
+}
+if (targetRepository === sourceRepository) {
+  fail("Kit source and installation target must be different repositories.");
+}
+
 const previousLock = existsSync(lockPath) ? readJson(lockPath) : null;
+if (previousLock) {
+  if (!new Set([2, 3]).has(previousLock.schema_version)) {
+    fail(`Unsupported kit lock schema: ${previousLock.schema_version ?? "<missing>"}.`);
+  }
+  if (!previousLock.files || typeof previousLock.files !== "object" || Array.isArray(previousLock.files)) {
+    fail("Kit lock is missing its file ownership map.");
+  }
+  if (previousLock.schema_version === 2 && typeof previousLock.kit_version !== "string") {
+    fail("Legacy v2 kit lock is missing kit_version.");
+  }
+  if (previousLock.schema_version === 3
+    && (!previousLock.kit?.source_repository
+      || !/^[0-9a-f]{40}$/.test(previousLock.kit?.source_commit ?? "")
+      || !previousLock.target?.repository)) {
+    fail("Kit lock v3 is missing source/target provenance.");
+  }
+}
 if (args.mode === "apply" && previousLock) fail("A kit lock already exists; use --upgrade.");
 if (args.mode === "upgrade" && !previousLock) fail("No .codex/kit-lock.json exists; use --apply first.");
 const effectiveMode = args.mode === "dry-run" ? (previousLock ? "upgrade" : "apply") : args.mode;
 if (args.force && effectiveMode !== "upgrade") {
   fail("--force is allowed only for an upgrade backed by an existing kit lock.");
+}
+
+const targetConfigPath = join(targetRoot, ".codex", "agent-workflow.json");
+const targetConfig = existsSync(targetConfigPath) ? readJson(targetConfigPath) : null;
+const configuredRepository = targetConfig?.github?.repository;
+const lockedSourceRepository = previousLock?.kit?.source_repository;
+const lockedTargetRepository = previousLock?.target?.repository;
+const lockedTargetOrigin = previousLock?.target?.origin_url;
+if (lockedSourceRepository && lockedSourceRepository !== sourceRepository) {
+  fail(`Kit source identity mismatch: checkout=${sourceRepository}, lock=${lockedSourceRepository}.`);
+}
+if ((configuredRepository && configuredRepository !== targetRepository)
+  || (lockedTargetRepository && lockedTargetRepository !== targetRepository)
+  || (lockedTargetOrigin && normalizeGitHubRepository(lockedTargetOrigin) !== targetRepository)) {
+  fail(`Target identity mismatch: remote=${targetRepository}, config=${configuredRepository || "<unset>"}, lock=${lockedTargetRepository || "<v2-unbound>"}.`);
 }
 
 const manifestByPath = new Map(manifest.files.map((entry) => [entry.path, entry]));
@@ -104,7 +228,7 @@ for (const path of args.acceptHost) {
 }
 
 function safeTarget(path) {
-  if (isAbsolute(path) || path.split("/").includes("..")) fail(`Unsafe manifest path: ${path}`);
+  if (unsafeManifestPath(path)) fail(`Unsafe manifest path: ${path}`);
   let cursor = targetRoot;
   for (const segment of path.split("/")) {
     cursor = join(cursor, segment);
@@ -123,6 +247,9 @@ for (const entry of manifest.files) {
   const source = join(kitRoot, entry.path);
   const target = safeTarget(entry.path);
   if (!existsSync(source)) fail(`Manifest source is missing: ${entry.path}`);
+  if (!lstatSync(source).isFile() || lstatSync(source).isSymbolicLink()) {
+    fail(`Manifest source must be a regular non-symlink file: ${entry.path}`);
+  }
 
   const sourceHash = hashFile(source);
   const targetHash = existsSync(target) ? hashFile(target) : null;
@@ -150,9 +277,22 @@ for (const entry of manifest.files) {
   };
 }
 
+const manifestHash = hashFile(manifestPath);
+const sourceTreeHash = createHash("sha256").update(JSON.stringify(
+  operations
+    .map((operation) => ({
+      path: operation.path,
+      ownership: operation.ownership,
+      source_hash: operation.sourceHash,
+    }))
+    .sort((left, right) => left.path.localeCompare(right.path)),
+)).digest("hex");
+
 console.log(`Codex Automation Guide kit ${manifest.kit_version}`);
 console.log(`Mode: ${args.mode}${args.mode === "dry-run" ? ` (${effectiveMode} preview)` : ""}`);
-console.log(`Target: ${targetRoot}`);
+console.log(`Kit source: ${sourceRepository}@${sourceCommit}`);
+console.log(`Installation target: ${targetRepository} (${targetDefaultBranch})`);
+console.log(`Target path: ${targetRoot}`);
 for (const operation of operations) {
   if (!conflicts.some((entry) => entry.path === operation.path)) {
     console.log(`${operation.action}: ${operation.path}`);
@@ -186,8 +326,19 @@ for (const operation of operations) {
 
 mkdirSync(dirname(lockPath), { recursive: true });
 writeFileSync(lockPath, `${JSON.stringify({
-  schema_version: 2,
-  kit_version: manifest.kit_version,
+  schema_version: 3,
+  kit: {
+    version: manifest.kit_version,
+    source_repository: sourceRepository,
+    source_commit: sourceCommit,
+    manifest_sha256: manifestHash,
+    tree_sha256: sourceTreeHash,
+  },
+  target: {
+    repository: targetRepository,
+    origin_url: targetOriginUrl,
+    default_branch: targetDefaultBranch,
+  },
   installed_at: new Date().toISOString(),
   files: nextFiles,
 }, null, 2)}\n`);

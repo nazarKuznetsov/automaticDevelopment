@@ -31,6 +31,7 @@ function evidence(sha, branchCi = "PASS", baseSha = sha) {
     commit_sha: sha,
     base_sha_at_launch: baseSha,
     validated_base_sha: baseSha,
+    automation_profile: "team_safe",
     qa_tracked_worktree: { status: "CLEAN", before: "", after: "" },
     worker: { source: { kind: "agent_task", id: "worker-task-1" } },
     issue: { number: 1, is_leaf: true, risk: "Medium", high_risk_flags: [], unresolved_dependencies: [] },
@@ -76,6 +77,7 @@ test("gate fails closed, writes one SHA marker in a managed worktree, and hook r
     schema_version: 2,
     configured: true,
     github: { repository: "example/repo", default_branch: defaultBranch },
+    execution: { automation_profile: "team_safe" },
     validation: {
       targeted: [targetedCommand],
       full: ["node -e \"process.exit(0)\""],

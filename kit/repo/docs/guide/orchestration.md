@@ -15,13 +15,13 @@ Codex subagents reduce main-task context pollution but consume additional tokens
 
 ## Start and materialize
 
-One fresh Orchestrator handles one approved materialization or one approved wave. Its human-approved Start Packet binds both Global Roadmap and Phase Plan revisions/digests, base SHA, exact approved `plan_item_id` values, mode, expiry, and named approver before Issues exist.
+One fresh Orchestrator handles one approved wave. Its Start Packet binds the execution repository, roadmap/Phase Plan revisions and digests, base SHA, exact plan IDs, mode, and one durable Wave Authority Lease. The same lease covers scoped materialization, Worker launch, routine lifecycle writes, retries, and Low-risk merge only when the selected profile permits it.
 
 `materialization_only` authorizes exact GitHub ledger setup and no Worker activity. `wave_execution` authorizes at most five top-level Worker launches, at most two concurrent writers on disjoint conflict keys, managed worktrees, monitoring, high-risk review tasks, post-Done archive, and merge only after a later exact authorization.
 
-Orchestrator does not write product code, infer missing fields, or invent backlog. It runs `validatePlanContracts` and `evaluateOrchestratorStart` before writes, materializes exactly and idempotently, verifies every GitHub mutation, and publishes one Plan Materialization Report comment on the approved report-parent Issue.
+Orchestrator does not write product code, infer missing fields, or invent backlog. It validates lock/config/remote/packet identity and manifest ownership before writes. It materializes only the execution horizon and publishes one report containing a stable operation journal. Closed Issues, advanced statuses, existing relations, and completed operation IDs are preserved.
 
-GitHub preflight must prove repository access and Project mutation/readback coverage. A browser session or a narrative claim is not typed multi-item readback. If scopes or mutation capabilities are missing, stop before writes with Human Action Required.
+GitHub preflight must prove target and source-maintenance access separately. If a target Issue touches managed core, do not launch its Worker: search/create the fingerprinted source Issue, run source delivery, install the exact merged source SHA into the target, run target regression, and resume the original wave. Without source access, publish `BLOCK_AND_REPORT`.
 
 ## Materialization-only Start prompt — EN
 
@@ -29,8 +29,8 @@ GitHub preflight must prove repository access and Project mutation/readback cove
 Use $github-agent-orchestrator in a fresh top-level Codex task for <owner/repo> in materialization_only mode.
 Global Roadmap Packet: <complete-approved-json>
 Phase Plan Packet: <complete-approved-json>
-Start Packet: <complete-approved-json>
-Recompute both packet digests, run validatePlanContracts with approval required, and validate the Start Packet before any write. Materialize the exact approved item set top-down, create native relationships and Project fields, read every write back, and publish one Plan Materialization Report on the approved parent Issue. Create no claims, Workers, heartbeat, branches, PRs, or merge actions. Do not infer or repair missing content; return Human Action Required instead.
+Start Packet with repository and Wave Authority Lease: <complete-approved-json>
+Recompute packet digests and validate the Start Packet before writes. Materialize only the current horizon, resume completed operation IDs, preserve closed/advanced state, and publish the full lifecycle journal. Create no Worker activity in this mode.
 ```
 
 ## Промпт materialization-only — RU
@@ -50,7 +50,7 @@ Use $github-agent-orchestrator in a fresh top-level Codex task for exactly one w
 Global Roadmap Packet: <complete-approved-json>
 Phase Plan Packet: <complete-approved-json>
 Start Packet: <complete-approved-json>
-Validate all revisions, digests, exact Ready IDs, conflict keys, base SHA, expiry, and authority before any write. Materialize the exact approved contracts, then create at most five fresh top-level Worker tasks in managed worktrees, keep at most two disjoint write Workers, monitor/steer them, create required top-level high-risk review tasks, and archive Workers only after post-merge Done. Do not fork this task, write product code, invent backlog, publish local paths, or merge without a separate exact PR/head-SHA authorization.
+Validate repository identity, ownership, revisions, digests, Ready IDs, base SHA, lease scope/budgets/expiry, and profile before writes. Resume/materialize the current horizon and launch the first eligible Worker in the same session. Use risk-tiered review; require separate exact merge authorization only where profile/risk requires it.
 ```
 
 ## Промпт wave-execution — RU
@@ -67,16 +67,16 @@ Start Packet: <полный-утверждённый-json>
 
 Claim → `CREATING` → `LAUNCHED`. A queued/client ID is not a launch. Count only matching canonical task/worktree IDs with top-level/managed ownership and verified ready/running state. On ambiguity, search existing tasks before retrying; on creation failure, release the claim without consuming a launch. Never use `fork_thread`, `/private/tmp`, or a handmade worktree as the normal execution surface.
 
-Build the occupied set from active `conflict_keys`. A Worker that discovers an extra overlapping surface stops before writes and returns Surface Update. Stale claim recovery requires task absence, three missed heartbeats, and no branch or PR.
+Build the occupied set from active `conflict_keys`. Before claim, classify touch points: the manifest is authoritative for Kit-listed paths; non-manifest product paths require an explicit host declaration backed by the approved target surface; generated paths require generator evidence. Managed, generated, or unknown paths never reach target Worker creation. Stale claim recovery requires task absence, three missed heartbeats, and no branch or PR; recovery reuses the lease.
 
 ## Worker launch prompt — EN
 
 ```text
 Use $github-agent-worker in this fresh top-level managed-worktree task.
 Raw Issue: <issue-url-and-body>
-Worker Packet: <worker-packet>
+Worker Packet with identity/ownership/source/lease bindings: <worker-packet>
 Canonical revisions: <links-and-revisions>
-Work on exactly this leaf as the sole tracked-file author. Verify owner layer/conflict keys before writing; return Surface Update if they expand. Use TDD, bounded fresh review agents, branch CI, base freshness, clean tracked tree, and distinct admission-reviewer evidence. Do not create Issues or merge.
+Work on this target-owned leaf as sole tracked-file author. Run identity and ownership preflight before RED. Return SOURCE_REPAIR_REQUIRED, GENERATOR_REQUIRED, or BLOCKED without writes when applicable. Use TDD, profile/risk-appropriate review, branch CI, clean tree, and deterministic admission.
 ```
 
 ## Промпт запуска Worker — RU
@@ -86,18 +86,18 @@ Work on exactly this leaf as the sole tracked-file author. Verify owner layer/co
 Raw Issue: <issue-url-and-body>
 Worker Packet: <worker-packet>
 Canonical revisions: <links-and-revisions>
-Работай только над этим leaf как единственный автор tracked files. До записи проверь owner layer/conflict keys; при расширении верни Surface Update. Используй TDD, ограниченных свежих review agents, branch CI, fresh base, clean tracked tree и evidence отдельного admission-reviewer. Не создавай Issues и не merge.
+Работай только над target-owned leaf как единственный автор tracked files. До записи проверь identity/ownership/source/lease bindings; верни SOURCE_REPAIR_REQUIRED, GENERATOR_REQUIRED или BLOCKED без tracked writes, если preflight не пройден. Используй TDD, review topology профиля/риска, branch CI, fresh base, clean tracked tree и deterministic admission. Не создавай Issues и не merge.
 ```
 
 ## Findings, merge, and post-merge
 
 Worker returns Finding Packets; Orchestrator performs authoritative duplicate search, returns in-scope fixes, creates proven independent Low/Medium Bugs, and escalates High/security/data/migration/product ambiguity.
 
-After a repository/PR/head/base/admission-digest-bound Merge Authorization Packet, Orchestrator re-reads every binding, checks, dependencies, and threads. Any change cancels authorization. A valid merge uses `expected_head_sha`, requires canonical merge-commit readback and post-merge CI bound to that commit, and reaches Done/archive only after this evidence passes.
+`solo_fast` Low risk may merge automatically after deterministic admission and complete readback. Other merges require repository/PR/head/base/admission-digest authorization. Every profile requires merge-commit readback and post-merge CI before Done/archive.
 
 ## Heartbeat and Handoff
 
-Attach the 20-minute schedule only while work is active; pause when idle or awaiting a human. At wave completion or five launches, stop launching and hand off.
+Attach the 20-minute schedule only while work is active; pause when idle or awaiting a human. Handoff persists authority ID, source/target bindings, operation journal cursor, write/launch budget, claims, and PR state. A new task does not trigger a new approval.
 
 ### Handoff / takeover prompt — EN
 

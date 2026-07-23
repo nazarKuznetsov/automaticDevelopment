@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Wave Authority Lease v2",
+  "type": "object",
+  "required": [
+    "authority_id",
+    "profile",
+    "repositories",
+    "plan_revision",
+    "plan_item_ids",
+    "issue_ids",
+    "allowed_actions",
+    "max_worker_launches",
+    "max_github_writes",
+    "expires_at",
+    "approved_by"
+  ],
+  "properties": {
+    "authority_id": { "type": "string", "minLength": 1 },
+    "profile": { "enum": ["solo_fast", "team_safe", "regulated"] },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repository" }
+    },
+    "plan_revision": { "type": "string", "minLength": 1 },
+    "plan_item_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" }
+    },
+    "issue_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 1 }
+    },
+    "allowed_actions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "materialize",
+          "create_issue",
+          "update_issue",
+          "create_comment",
+          "create_relation",
+          "update_project",
+          "create_worker",
+          "monitor_worker",
+          "manage_claim",
+          "heartbeat",
+          "retry_operation",
+          "update_lifecycle",
+          "create_source_maintenance",
+          "merge_low_risk"
+        ]
+      }
+    },
+    "max_worker_launches": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "max_github_writes": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "approved_by": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" }
+  },
+  "additionalProperties": false
+}

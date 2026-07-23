@@ -13,7 +13,13 @@
     "report_parent_plan_item_id",
     "report_parent_issue_url",
     "report_url",
+    "run_id",
+    "repository",
     "status",
+    "operation_journal",
+    "completed_operation_ids",
+    "remaining_operations",
+    "resume_state",
     "mapping",
     "hierarchy_readback",
     "dependency_readback",
@@ -36,7 +42,24 @@
       "format": "uri",
       "pattern": "^https://github\\.com/.+/issues/[0-9]+#issuecomment-[0-9]+$"
     },
+    "run_id": { "type": "string", "minLength": 1 },
+    "repository": { "$ref": "#/$defs/repository" },
     "status": { "enum": ["PASS", "FAIL", "BLOCKED"] },
+    "operation_journal": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "completed_operation_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/digest" }
+    },
+    "remaining_operations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/digest" }
+    },
+    "resume_state": { "enum": ["COMPLETE", "RESUMABLE", "BLOCKED"] },
     "mapping": { "type": "array", "items": { "$ref": "#/$defs/mapping" } },
     "hierarchy_readback": { "type": "array", "items": { "$ref": "#/$defs/hierarchy" } },
     "dependency_readback": { "type": "array", "items": { "$ref": "#/$defs/dependency" } },
@@ -87,6 +110,7 @@
   "$defs": {
     "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "plan_item_id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
     "phase": { "enum": ["Discovery", "Planning", "Design", "Foundation", "MVP", "Stabilization", "Production", "Growth"] },
     "work_type": { "enum": ["Epic", "Capability", "Task", "Bug", "Docs", "Automation", "Refactor"] },
     "priority": { "enum": ["P0", "P1", "P2", "P3"] },
@@ -151,7 +175,7 @@
         "size": { "$ref": "#/$defs/size" },
         "risk": { "$ref": "#/$defs/risk" },
         "qa_required": { "$ref": "#/$defs/qa_required" },
-        "status": { "enum": ["Backlog", "Ready"] },
+        "status": { "enum": ["Backlog", "Ready", "In Progress", "Validation", "Blocked", "Review", "Done", "Canceled"] },
         "observed": { "const": true }
       },
       "additionalProperties": false
@@ -164,6 +188,21 @@
         "issue_url": { "$ref": "#/$defs/issue_url" },
         "label_present": { "const": true },
         "status": { "const": "Ready" }
+      },
+      "additionalProperties": false
+    },
+    "operation": {
+      "type": "object",
+      "required": ["operation_id", "kind", "key", "before", "target", "after", "action"],
+      "properties": {
+        "operation_id": { "$ref": "#/$defs/digest" },
+        "kind": { "enum": ["item", "relation"] },
+        "key": { "type": "string", "minLength": 1 },
+        "before": { "type": ["object", "null"] },
+        "target": { "type": "object" },
+        "after": { "type": ["object", "null"] },
+        "action": { "enum": ["CREATE", "KEEP", "ADVANCE", "BLOCK"] },
+        "reason": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     }

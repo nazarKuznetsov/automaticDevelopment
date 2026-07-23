@@ -198,6 +198,7 @@ const report = evaluateAdmission({
     integration: config.validation?.integration,
     branch_ci_workflow: config.validation?.branch_ci_workflow,
   },
+  configured_automation_profile: config.execution?.automation_profile ?? "team_safe",
   configured_bootstrap: config.bootstrap,
   configured_canonical_publication: config.canonical_publication,
   canonical_tree_state: evidence.canonical_publication
@@ -220,7 +221,7 @@ const reportPayload = {
   ...report,
   schema_version: 2,
   base_sha: currentBaseSha,
-  admission_source_id: evidence.reviews?.admission?.source?.id,
+  admission_source_id: evidence.reviews?.admission?.source?.id ?? evidence.reviews?.reviewer_qa?.source?.id,
 };
 const reportDigest = createHash("sha256").update(JSON.stringify(reportPayload)).digest("hex");
 writeFileSync(reportPath, `${JSON.stringify({ ...reportPayload, report_digest: reportDigest }, null, 2)}\n`);

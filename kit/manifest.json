@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "kit_version": "2.0.2",
+  "kit_version": "2.1.0",
   "files": [
     { "path": ".agents/skills/github-agent-orchestrator/SKILL.md", "ownership": "managed" },
     { "path": ".agents/skills/github-agent-orchestrator/agents/openai.yaml", "ownership": "managed" },
@@ -31,6 +31,7 @@
     { "path": ".codex/schemas/v2/finding.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/global-roadmap.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/human-action-required.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/kit-maintenance.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/merge-authorization.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/orchestrator-start.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/orchestrator-state-handoff.schema.json", "ownership": "managed" },
@@ -40,6 +41,7 @@
     { "path": ".codex/schemas/v2/pre-pr-admission.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/surface-update.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/wave-completion.schema.json", "ownership": "managed" },
+    { "path": ".codex/schemas/v2/wave-authority-lease.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/worker-completion.schema.json", "ownership": "managed" },
     { "path": ".codex/schemas/v2/worker.schema.json", "ownership": "managed" },
     { "path": ".codex/scripts/pre-pr-gate.mjs", "ownership": "managed" },

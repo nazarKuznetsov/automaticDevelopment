@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Pre-PR Admission Evidence v2",
   "type": "object",
-  "required": ["schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha", "qa_tracked_worktree", "acceptance", "tdd", "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates"],
+  "required": ["schema_version", "packet_type", "commit_sha", "base_sha_at_launch", "validated_base_sha", "automation_profile", "qa_tracked_worktree", "acceptance", "tdd", "local_validation", "reviews", "branch_ci", "baseline", "documentation", "rollout", "human_gates"],
   "oneOf": [
     {
       "required": ["worker", "issue"],
@@ -23,6 +23,7 @@
     "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "base_sha_at_launch": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "validated_base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "automation_profile": { "enum": ["solo_fast", "team_safe", "regulated"] },
     "qa_tracked_worktree": {
       "$ref": "#/$defs/clean_tree"
     },
@@ -142,11 +143,12 @@
     },
     "reviews": {
       "type": "object",
-      "required": ["reviewer", "qa", "admission", "design", "security"],
+      "required": ["design", "security"],
       "properties": {
         "reviewer": { "$ref": "#/$defs/review" },
         "qa": { "$ref": "#/$defs/review" },
         "admission": { "$ref": "#/$defs/review" },
+        "reviewer_qa": { "$ref": "#/$defs/review" },
         "design": { "$ref": "#/$defs/conditional_review" },
         "security": { "$ref": "#/$defs/conditional_review" }
       },
